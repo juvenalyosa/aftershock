@@ -1,0 +1,2 @@
+name,mutations,wt_pdb,mut_pdb,run_dir,ligand_resname,label,effect_score,foldx_ddg,ddmut_score
+example_variant,"K2R,10_11delinsG",path/to/wt_with_ligand.pdb,path/to/mutant_with_ligand.pdb,,ZN,1,1.25,0.8,0.6

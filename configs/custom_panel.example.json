@@ -1,0 +1,46 @@
+{
+  "panel": {
+    "reference_pdb": "data/toy/1ZNF.pdb",
+    "template_pdb": "data/toy/1ZNF.pdb",
+    "ligand_xml": "data/toy/empty_ligand.xml",
+    "ligand_resname": "ZN",
+    "template": "1ZNFA",
+    "chain_id": "A",
+    "output_dir": "runs/custom_panel_example",
+    "mutation_sets": {
+      "wt_model": ["K2K"],
+      "k2r": ["K2R"],
+      "k2r_q20dup": ["K2R", "Q20dup"],
+      "loop_delins": ["10_11delinsG"]
+    },
+    "replicas": 2,
+    "num_models": 8,
+    "num_processors": 1,
+    "temperature_k": 300.0,
+    "equil_steps": 500000,
+    "prod_steps": 10000000,
+    "report_interval": 10000,
+    "checkpoint_interval_steps": 250000,
+    "platform": "AUTO",
+    "md_seed_base": 1300,
+    "rb_ang": 6.0,
+    "rp_ang": 12.0,
+    "grid_spacing_ang": 3.0,
+    "sigma_ang": 3.0,
+    "max_grid_points": 64,
+    "vamp_lag": 4,
+    "latent_b": 6,
+    "latent_p": 6,
+    "latent_l": 3,
+    "var_max_order": 3,
+    "te_surrogates": 64,
+    "te_seed_base": 200,
+    "max_null_pairs": 30
+  },
+  "notes": {
+    "how_to_adapt": "Replace reference_pdb, template_pdb, template (code + chain), ligand_xml, ligand_resname and mutation_sets with your system. Mutations use the residue numbering of the reference PDB.",
+    "wt_model": "A silent substitution (K2K) builds the unmutated sequence with MODELLER: it measures how different a modelled WT is from the experimental WT, i.e. the part of any effect that is due to model building and not to the mutation.",
+    "design": "4 scenarios x 2 replicas = 8 WT trajectories = 28 WT-vs-WT pairs, enough for the null control to give p <= 0.05 per run.",
+    "launch": "python -m pert md-panel-config --config configs/custom_panel.example.json   (add --dry-run to see the command)"
+  }
+}

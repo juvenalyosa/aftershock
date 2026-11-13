@@ -1,0 +1,4 @@
+variant_id,mutation_spec,wildtype_structure,mutant_structure,site,effect_value,foldx_raw,ddmut_raw
+toy_snp,K2R,runs/mutation_panel_1znf_smoke1ns_dry/snp_k2r/rep1/structures/wt_with_ligand.pdb,runs/mutation_panel_1znf_smoke1ns_dry/snp_k2r/rep1/structures/mutant_with_ligand.pdb,ZN,0.35,0.2,0.1
+toy_delins,10_11delinsG,runs/mutation_panel_1znf_smoke1ns_dry/delins_10_11_g/rep1/structures/wt_with_ligand.pdb,runs/mutation_panel_1znf_smoke1ns_dry/delins_10_11_g/rep1/structures/mutant_with_ligand.pdb,ZN,1.20,1.1,0.9
+toy_combo,"K2R;10_11insdelG;Q20dup",runs/fast_panel_combo_smoke/combo_fast/rep1/structures/wt_with_ligand.pdb,runs/fast_panel_combo_smoke/combo_fast/rep1/structures/mutant_with_ligand.pdb,ZN,1.55,1.4,1.2

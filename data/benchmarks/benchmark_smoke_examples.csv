@@ -1,0 +1,4 @@
+name,mutations,wt_pdb,mut_pdb,ligand_resname
+snp_k2r,K2R,runs/mutation_panel_1znf_smoke1ns_dry/snp_k2r/rep1/structures/wt_with_ligand.pdb,runs/mutation_panel_1znf_smoke1ns_dry/snp_k2r/rep1/structures/mutant_with_ligand.pdb,ZN
+delins_10_11_g,10_11delinsG,runs/mutation_panel_1znf_smoke1ns_dry/delins_10_11_g/rep1/structures/wt_with_ligand.pdb,runs/mutation_panel_1znf_smoke1ns_dry/delins_10_11_g/rep1/structures/mutant_with_ligand.pdb,ZN
+combo_fast,"K2R,10_11insdelG,Q20dup",runs/fast_panel_combo_smoke/combo_fast/rep1/structures/wt_with_ligand.pdb,runs/fast_panel_combo_smoke/combo_fast/rep1/structures/mutant_with_ligand.pdb,ZN

@@ -1,0 +1,86 @@
+{
+  "build": {
+    "reference_pdb": "data/toy/1ZNF.pdb",
+    "ligand_xml": "data/toy/empty_ligand.xml",
+    "ligand_resnames": [
+      "ZN"
+    ],
+    "mutations": [
+      "K2R",
+      "R8_S9insA",
+      "10_11delinsG",
+      "Q20dup"
+    ],
+    "templates": [
+      "1ZNFA"
+    ],
+    "chain_id": "A",
+    "original_sequence": null,
+    "start_pos": null,
+    "num_models": 8,
+    "num_processors": 1,
+    "modeller_seed": 17
+  },
+  "md": {
+    "temperature_k": 300.0,
+    "friction_per_ps": 1.0,
+    "timestep_fs": 2.0,
+    "pressure_bar": 1.0,
+    "barostat_interval": 25,
+    "nonbonded_method": "PME",
+    "nonbonded_cutoff_nm": 1.0,
+    "add_solvent": true,
+    "water_model": "tip3p",
+    "solvent_padding_nm": 1.0,
+    "ionic_strength_m": 0.15,
+    "neutralize": true,
+    "positive_ion": "Na+",
+    "negative_ion": "Cl-",
+    "minimization_max_iterations": 500,
+    "heating_initial_temperature_k": 50.0,
+    "heating_steps": 5000,
+    "heating_stages": 10,
+    "equilibration_steps": 10000,
+    "production_steps": 50000,
+    "report_interval": 100,
+    "platform": "CPU",
+    "random_seed": 1234,
+    "checkpoint_interval_steps": 250000
+  },
+  "field": {
+    "rb_ang": 6.0,
+    "rp_ang": 12.0,
+    "grid_spacing_ang": 3.0,
+    "sigma_ang": 3.0,
+    "max_grid_points": 128,
+    "include_velocity": true,
+    "remove_com": true,
+    "density_normalize": true,
+    "append_type_counts": true,
+    "frame_mode": "shared_site",
+    "frame_site_cutoff_ang": 6.0,
+    "frame_min_anchors": 6
+  },
+  "latent": {
+    "lag": 4,
+    "m_b": 6,
+    "m_p": 6,
+    "m_l": 3,
+    "reg": 1e-06,
+    "solver": "auto"
+  },
+  "te": {
+    "max_order": 3,
+    "ridge_values": [
+      1e-08,
+      1e-06,
+      0.0001,
+      0.01
+    ],
+    "surrogates": 64,
+    "whiteness_lag": 10,
+    "whiteness_threshold": 0.2,
+    "random_seed": 13
+  },
+  "output_dir": "runs/run_from_config"
+}

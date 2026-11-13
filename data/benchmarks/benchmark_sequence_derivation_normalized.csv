@@ -1,0 +1,3 @@
+name,mutations,wt_pdb,mut_pdb,run_dir,ligand_resname,label,effect_score
+colon_subs,"K2R,Q20R",,,,,0,0.8
+full_sequence_indel,"K2R,F10_V11delinsG,Q20dup",,,,,1,1.4

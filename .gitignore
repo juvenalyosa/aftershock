@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Generated results (large; keep them out of version control)
+runs/
+
+# Editors / OS
+.DS_Store
+.mplconfig/
+.vscode/
+.idea/

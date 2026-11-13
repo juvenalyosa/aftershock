@@ -1,0 +1,46 @@
+{
+  "panel": {
+    "reference_pdb": "data/toy/1ZNF.pdb",
+    "template_pdb": "data/toy/1ZNF.pdb",
+    "ligand_xml": "data/toy/empty_ligand.xml",
+    "ligand_resname": "ZN",
+    "template": "1ZNFA",
+    "chain_id": "A",
+    "replicas": 1,
+    "output_dir": "runs/mutation_panel_1znf_40ns",
+    "num_models": 8,
+    "num_processors": 1,
+    "temperature_k": 300.0,
+    "equil_steps": 500000,
+    "prod_steps": 20000000,
+    "report_interval": 10000,
+    "platform": "AUTO",
+    "md_seed_base": 1300,
+    "rb_ang": 6.0,
+    "rp_ang": 12.0,
+    "grid_spacing_ang": 3.0,
+    "sigma_ang": 3.0,
+    "max_grid_points": 64,
+    "occupancy_only": false,
+    "vamp_lag": 4,
+    "latent_b": 6,
+    "latent_p": 6,
+    "latent_l": 3,
+    "var_max_order": 3,
+    "te_surrogates": 64,
+    "te_seed_base": 200
+  },
+  "notes": {
+    "timestep_fs_assumed_by_panel": 2.0,
+    "production_ns_per_run": 40.0,
+    "runs_total": "4 mutation scenarios x replicas",
+    "default_mdconfig_used_from_topology_safe_pipeline": {
+      "add_solvent": true,
+      "water_model": "tip3p",
+      "ionic_strength_m": 0.15,
+      "heating_initial_temperature_k": 50.0,
+      "heating_steps": 5000,
+      "heating_stages": 10
+    }
+  }
+}

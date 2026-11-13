@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pert"
+version = "0.2.0"
+description = "Quantify how a mutation (perturbation) affects a protein's active site, including indels."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "El_Dryosa" }]
+# OpenMM and MODELLER are installed with conda (see environment.yml).
+dependencies = [
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+pert = "pert.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["pert*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["runs", "archive", "cpp"]
+
+[tool.ruff.lint]
+select = ["E9", "F"]

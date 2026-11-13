@@ -1,0 +1,47 @@
+{
+  "panel": {
+    "reference_pdb": "data/toy/1ZNF.pdb",
+    "template_pdb": "data/toy/1ZNF.pdb",
+    "ligand_xml": "data/toy/empty_ligand.xml",
+    "ligand_resname": "ZN",
+    "template": "1ZNFA",
+    "chain_id": "A",
+    "output_dir": "runs/znf_panel_20ns",
+    "mutation_sets": {
+      "wt_model": ["K2K"],
+      "snp_k2r": ["K2R"],
+      "delins_10_11_g": ["10_11delinsG"],
+      "dup_q20": ["Q20dup"]
+    },
+    "replicas": 2,
+    "num_models": 8,
+    "num_processors": 1,
+    "temperature_k": 300.0,
+    "equil_steps": 500000,
+    "prod_steps": 10000000,
+    "report_interval": 10000,
+    "checkpoint_interval_steps": 250000,
+    "platform": "AUTO",
+    "md_seed_base": 1300,
+    "rb_ang": 6.0,
+    "rp_ang": 12.0,
+    "grid_spacing_ang": 3.0,
+    "sigma_ang": 3.0,
+    "max_grid_points": 64,
+    "vamp_lag": 4,
+    "latent_b": 6,
+    "latent_p": 6,
+    "latent_l": 3,
+    "var_max_order": 3,
+    "te_surrogates": 64,
+    "te_seed_base": 200,
+    "max_null_pairs": 30
+  },
+  "notes": {
+    "purpose": "First panel meant to answer a question rather than to exercise the code: do the mutations change the zinc site beyond what two WT simulations differ by?",
+    "design": "4 scenarios x 2 replicas = 16 simulations of 20 ns (1001 frames each): 8 WT trajectories = 28 WT-vs-WT pairs for the null control. wt_model (K2K) is the modelled-WT control.",
+    "cost": "320 ns in total, about 5000 atoms per system. Roughly 8 days on a laptop GPU at 40 ns/day; under a day on a recent CUDA GPU. Disk: about 5 GB.",
+    "launch": "bash scripts/run_panel_workflow.sh configs/znf_panel_20ns.json   (set CONDA_ENV_NAME; re-run the same command to resume; CONTROL_SCENARIO=wt_model uses the modelled WT as baseline in the consensus)",
+    "to_extend": "Raise prod_steps and re-run: finished simulations are extended, not redone."
+  }
+}

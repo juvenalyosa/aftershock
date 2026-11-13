@@ -1,0 +1,22 @@
+# Conda environment for PERT.
+# Tested with Python 3.11, NumPy 1.26, OpenMM 8.6, MODELLER 10.8, scikit-learn 1.9.
+#
+#   conda env create -f environment.yml
+#   conda activate pert
+#
+# MODELLER needs a licence key: set KEY_MODELLER before installing, or edit
+# <env>/lib/modeller-*/modlib/modeller/config.py afterwards.
+name: pert
+channels:
+  - conda-forge
+  - salilab
+dependencies:
+  - python=3.11
+  - numpy
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - openmm>=8
+  - modeller
+  - pytest
+  - pip

@@ -1,0 +1,9 @@
+{
+  "input": "data/benchmarks/benchmark_raw_smoke_source.csv",
+  "output": "data/benchmarks/benchmark_raw_smoke_normalized.csv",
+  "rows_in": 3,
+  "rows_out": 3,
+  "rows_skipped": 0,
+  "skipped": [],
+  "note": "Mutation validation checks syntax only; sequence/PDB compatibility is checked during benchmark scoring."
+}

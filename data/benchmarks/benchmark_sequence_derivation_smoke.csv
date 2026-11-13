@@ -1,0 +1,3 @@
+variant_id,protein_variant,reference_sequence,mutated_sequence,effect_value
+colon_subs,K2R:Q20R,YKCGLCERSFVEKSALSRHQRVHKN,,0.8
+full_sequence_indel,,YKCGLCERSFVEKSALSRHQRVHKN,YRCGLCERSGEKSALSRHQQRVHKN,1.4

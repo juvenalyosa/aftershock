@@ -1,0 +1,44 @@
+Final analysis based on current toy panel results
+Source:
+- runs/mutation_panel_1znf/mutation_panel_summary.json
+- runs/mutation_panel_1znf/mutation_panel_metrics.csv
+- runs/mutation_panel_1znf/comparison_report.md
+
+Important scope note:
+- These results come from short toy productions (20,000 steps at 2 fs ~= 0.04 ns per run), so they are directionally useful but not converged for final biological claims.
+
+1) Directed predictive dependence (TE) ranking by mean DeltaTE (MUT-WT)
+- dup_q20: +0.245 +/- 0.022 nats (largest increase in context->pocket predictability)
+- ins_r8_s9insa: +0.188 +/- 0.053 nats
+- snp_k2r: +0.108 +/- 0.115 nats (high uncertainty)
+- delins_10_11_g: -0.145 +/- 0.016 nats (consistent decrease)
+
+2) Significance view (surrogate p-value mean)
+- ins_r8_s9insa: 0.030 (strongest evidence of non-random TE)
+- delins_10_11_g: 0.030 (strongest evidence, with negative DeltaTE)
+- dup_q20: 0.258 (effect size high, significance weak with current sampling)
+- snp_k2r: 0.273 (effect uncertain with current sampling)
+
+3) Coupling susceptibility shift (||DeltaGamma||F mean)
+- ins_r8_s9insa: 10.998 +/- 0.472 (largest coupling reorganization)
+- snp_k2r: 10.569 +/- 2.187
+- delins_10_11_g: 9.573 +/- 0.749
+- dup_q20: 7.503 +/- 0.425
+
+4) Distribution shift
+- JS divergence is high and very similar across all mutations (~0.677), indicating all mutants move away from WT pocket distribution.
+- GMM-KL ranking:
+  delins_10_11_g (270.222) > snp_k2r (224.734) > ins_r8_s9insa (163.962) > dup_q20 (127.823).
+
+5) Current interpretation
+- ins_r8_s9insa is the most robust "high-impact" perturbation in this toy panel: strong positive DeltaTE, significant surrogate p-value, and largest susceptibility shift.
+- delins_10_11_g appears mechanistically distinct: large distribution shift but reduced directed predictability toward the pocket (negative DeltaTE), suggesting altered/decoupled communication mode.
+- dup_q20 shows the largest positive DeltaTE effect size but needs longer trajectories to confirm significance.
+- snp_k2r perturbs coupling and distribution, but directional information-flow change is less certain under current sampling.
+
+6) Recommendation for the 40 ns campaign
+- Primary priority mutations for detailed follow-up: ins_r8_s9insa and delins_10_11_g.
+- Secondary: dup_q20 (confirm significance with long trajectories).
+- Control-level comparison: snp_k2r.
+- Re-evaluate rankings only after 40 ns runs with the same pipeline and uncertainty diagnostics (block-bootstrap, surrogate TE tests, reverse-direction TE control).
+
