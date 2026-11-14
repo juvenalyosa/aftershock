@@ -143,3 +143,31 @@ def test_vamp_flags_too_few_frames_and_survives_constant_input():
 def test_unknown_vamp_solver_is_rejected():
     with pytest.raises(ValueError):
         LinearVAMP(lag=1, n_components=2, solver="fast")
+
+
+def test_basin_ddg_plot_accepts_an_interval_that_excludes_the_estimate(tmp_path):
+    """A bootstrap interval need not contain the estimate; drawing it must not fail.
+
+    (Seen in a real run: a basin barely populated in one system. Matplotlib
+    rejects the negative error-bar length this used to produce.)
+    """
+    from pert.visualization.run_plots import plot_basin_ddg
+
+    def basin(index, ddg, low, high, p_wt=0.5):
+        return {"basin": index, "p_wt": p_wt, "p_mut": 0.5, "ddg_kcal_mol": ddg, "ddg_ci95_low": low, "ddg_ci95_high": high}
+
+    analysis = {
+        "basin_ddg": {
+            "basins": [
+                basin(0, 0.4, 0.1, 0.9),      # ordinary
+                basin(1, 1.5, -0.8, 1.2),     # estimate above the interval
+                basin(2, -2.0, -1.0, 0.3),    # estimate below the interval
+                basin(3, 0.7, None, None),    # no interval
+                basin(4, None, None, None),   # populated in one system only
+                basin(5, None, None, None, p_wt=0.0),
+            ]
+        }
+    }
+    out = tmp_path / "ddg.png"
+    plot_basin_ddg(analysis, str(out))
+    assert out.stat().st_size > 0

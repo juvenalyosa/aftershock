@@ -15,9 +15,15 @@ def plot_basin_ddg(analysis: Dict, out_png: str) -> None:
 
     Basins populated in only one system have no defined ddG: they are labelled
     "WT only" / "MUT only" instead of being drawn as bars.
+
+    The interval is drawn where the bootstrap puts it, not as an error bar
+    hanging from the bar: for a basin that is barely populated in one system
+    the resamples in which it survives are not centred on the estimate, and the
+    interval may not contain it.
     """
     basins = analysis["basin_ddg"]["basins"]
     labels = [str(row["basin"]) for row in basins]
+    positions = np.arange(len(basins))
 
     def _values(key: str) -> np.ndarray:
         return np.array([np.nan if row.get(key) is None else row[key] for row in basins], dtype=float)
@@ -26,10 +32,14 @@ def plot_basin_ddg(analysis: Dict, out_png: str) -> None:
     low = _values("ddg_ci95_low")
     high = _values("ddg_ci95_high")
     has_ci = np.isfinite(low) & np.isfinite(high)
-    yerr = np.vstack([np.where(has_ci, ddg - low, 0.0), np.where(has_ci, high - ddg, 0.0)])
 
     plt.figure(figsize=(7, 4))
-    plt.bar(labels, np.nan_to_num(ddg, nan=0.0), color="#4C78A8", alpha=0.9, yerr=yerr, capsize=4)
+    plt.bar(positions, np.nan_to_num(ddg, nan=0.0), color="#4C78A8", alpha=0.9)
+    if np.any(has_ci):
+        middle = 0.5 * (low[has_ci] + high[has_ci])
+        half_width = 0.5 * np.abs(high[has_ci] - low[has_ci])
+        plt.errorbar(positions[has_ci], middle, yerr=half_width, fmt="none", ecolor="black", capsize=4)
+    plt.xticks(positions, labels)
     for x, row in enumerate(basins):
         if row.get("ddg_kcal_mol") is None:
             only = "WT only" if float(row.get("p_wt", 0.0)) > 0.0 else "MUT only"
