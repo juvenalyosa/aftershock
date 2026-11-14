@@ -1,5 +1,7 @@
 # Aftershock — how does a perturbation reach the active site?
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/juvenalyosa/aftershock/blob/main/notebooks/aftershock_colab.ipynb)
+
 *Repository `aftershock`; the Python package and command are `pert`.*
 
 PERT compares a wild-type protein (WT) with a mutant (MUT) and quantifies how
@@ -289,8 +291,7 @@ It installs OpenMM (CUDA wheels) and MODELLER (Debian package) without conda
 starts `scripts/run_panel_workflow.sh` in the background and follows its log
 (`scripts/colab_tools.py`). A session that disconnects loses nothing: running
 the notebook again resumes every simulation from its last checkpoint. It needs
-a MODELLER licence key and, while the repository is private, a GitHub token
-with read access.
+a MODELLER licence key.
 
 The same scripts work on any Linux machine without conda: set
 `PERT_PYTHON=/path/to/python` and call `scripts/run_panel_workflow.sh`.
