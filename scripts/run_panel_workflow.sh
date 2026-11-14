@@ -15,7 +15,8 @@
 #
 # Environment overrides: CONDA_ENV_NAME, BINDING_CUTOFF_ANG, CONTROL_SCENARIO
 # (name of a scenario to use as baseline in the consensus, e.g. a silent
-# "wt_model" scenario).
+# "wt_model" scenario), and PERT_PYTHON (path of a Python interpreter to use
+# directly instead of a conda environment, e.g. on Google Colab).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,6 +24,7 @@ CONFIG_PATH="${1:-}"
 CONDA_ENV_NAME="${CONDA_ENV_NAME:-bgt-openmm82}"
 BINDING_CUTOFF_ANG="${BINDING_CUTOFF_ANG:-6.0}"
 CONTROL_SCENARIO="${CONTROL_SCENARIO:-}"
+PERT_PYTHON="${PERT_PYTHON:-}"
 
 if [[ -z "${CONFIG_PATH}" || ! -f "${CONFIG_PATH}" ]]; then
   echo "Config not found: '${CONFIG_PATH}'" >&2
@@ -34,13 +36,21 @@ CONFIG_PATH="$(cd "$(dirname "${CONFIG_PATH}")" && pwd)/$(basename "${CONFIG_PAT
 # All relative paths (configs, data/, runs/) are relative to the repository root.
 cd "${REPO_ROOT}"
 
+run_python() {
+  if [[ -n "${PERT_PYTHON}" ]]; then
+    "${PERT_PYTHON}" "$@"
+  else
+    conda run --no-capture-output -n "${CONDA_ENV_NAME}" python "$@"
+  fi
+}
+
 pert() {
-  conda run --no-capture-output -n "${CONDA_ENV_NAME}" python -m pert "$@"
+  run_python -m pert "$@"
 }
 
 # One source of truth: where the panel writes and which ligand defines the site.
 config_value() {
-  conda run --no-capture-output -n "${CONDA_ENV_NAME}" python -c '
+  run_python -c '
 import json, sys
 cfg = json.load(open(sys.argv[1]))
 cfg = cfg.get("panel", cfg)

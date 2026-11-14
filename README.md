@@ -29,6 +29,7 @@ configs/            JSON configurations for runs and panels
 data/toy/           toy system: zinc finger 1ZNF + ligand force-field XML
 data/benchmarks/    benchmark tables (smoke examples, template)
 scripts/            shell/python helpers (full 20 ns toy workflow, data prep)
+notebooks/          Google Colab notebook that runs a panel on a cloud GPU
 tests/              pytest suite (pure-Python kernels + structure smoke test)
 docs/               benchmarking guides, result notes
 runs/               ALL generated output (one directory per run or panel)
@@ -275,6 +276,24 @@ Design advice:
   comes from model building alone.
 * **Growing a panel.** Seeds depend on the scenario name, not on its position:
   adding or removing scenarios and re-running reuses what is already simulated.
+
+## Running on Google Colab
+
+[`notebooks/aftershock_colab.ipynb`](notebooks/aftershock_colab.ipynb) runs a
+panel on a Colab GPU and keeps results and checkpoints on Google Drive:
+
+<https://colab.research.google.com/github/juvenalyosa/aftershock/blob/main/notebooks/aftershock_colab.ipynb>
+
+It installs OpenMM (CUDA wheels) and MODELLER (Debian package) without conda
+(`scripts/colab_install.sh`), runs a short test of the whole chain, then
+starts `scripts/run_panel_workflow.sh` in the background and follows its log
+(`scripts/colab_tools.py`). A session that disconnects loses nothing: running
+the notebook again resumes every simulation from its last checkpoint. It needs
+a MODELLER licence key and, while the repository is private, a GitHub token
+with read access.
+
+The same scripts work on any Linux machine without conda: set
+`PERT_PYTHON=/path/to/python` and call `scripts/run_panel_workflow.sh`.
 
 ## Restarting and reproducing runs
 
