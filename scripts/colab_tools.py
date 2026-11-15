@@ -297,6 +297,31 @@ def platforms_used(output_dir: str) -> Dict[str, str]:
     return used
 
 
+def estimate_storage_gb(config_path: str, measured_dir: Optional[str] = None) -> Optional[float]:
+    """Disk space a panel will take, from the system size measured in a finished (test) panel.
+
+    Trajectories dominate: every frame stores positions and velocities of all
+    atoms in double precision, plus the positions again in the DCD file.
+    Returns ``None`` when no simulation of ``measured_dir`` records its size.
+    """
+    atoms = 0
+    if measured_dir:
+        for path in glob.glob(os.path.join(measured_dir, "*", "rep*", "**", "*_md.json"), recursive=True):
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    atoms = max(atoms, int(json.load(handle).get("num_atoms") or 0))
+            except (OSError, ValueError):
+                continue
+    if not atoms:
+        return None
+    with open(config_path, "r", encoding="utf-8") as handle:
+        panel = _panel_section(json.load(handle))
+    interval = max(1, int(panel.get("report_interval", 1)))
+    frames = int(panel.get("prod_steps", 0)) // interval + 1
+    bytes_per_frame = atoms * 3 * (8 + 8 + 4)   # npz positions + velocities (float64), DCD positions (float32)
+    return expected_simulations(config_path)["simulations"] * frames * bytes_per_frame * 1.1 / 1e9
+
+
 def _format_duration(seconds: float) -> str:
     minutes = int(round(seconds / 60.0))
     return f"{minutes // 60} h {minutes % 60:02d} min" if minutes >= 60 else f"{minutes} min"

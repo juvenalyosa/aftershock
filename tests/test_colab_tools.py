@@ -107,3 +107,14 @@ def test_verdict_rows_put_the_control_last_and_read_older_summaries(tmp_path):
     rows = ct.verdict_rows(str(panel))
     assert [row["scenario"] for row in rows] == ["snp", "old", "wt_model (control)"]
     assert [row["metrics that count"] for row in rows] == ["a", "b", "-"]
+
+
+def test_storage_estimate_uses_the_measured_system_size(tmp_path):
+    cfg = tmp_path / "cfg.json"
+    _write(str(cfg), {"panel": {"mutation_sets": {"a": ["K2R"]}, "replicas": 4, "prod_steps": 12500000, "report_interval": 10000}})
+    assert ct.estimate_storage_gb(str(cfg), None) is None
+    assert ct.estimate_storage_gb(str(cfg), str(tmp_path / "nothing")) is None
+    _write(str(tmp_path / "smoke" / "a" / "rep1" / "md" / "wt_md.json"), {"num_atoms": 20000})
+    _write(str(tmp_path / "smoke" / "a" / "rep1" / "md" / "mut_md.json"), {"num_atoms": 20589})
+    # 8 simulations x 1251 frames x 20589 atoms x 60 bytes, plus 10%
+    assert ct.estimate_storage_gb(str(cfg), str(tmp_path / "smoke")) == pytest.approx(8 * 1251 * 20589 * 60 * 1.1 / 1e9)
