@@ -17,6 +17,7 @@ from pert.deps import app, ensure_openmm, unit, Vec3
 from pert.sequence.alignment import align_index_pairs
 from pert.structure.geometry import kabsch_fit
 from pert.structure.residues import ca_records_from_topology
+from pert.structure.selection import ligand_selection
 
 
 def _extract_ligand_subset(
@@ -26,7 +27,7 @@ def _extract_ligand_subset(
 ) -> Tuple["app.Topology", List["unit.Quantity"], List[int]]:
     """Copy the ligand residues (atoms, bonds, positions) into a new topology."""
     ensure_openmm()
-    ligand_names = {name.upper() for name in ligand_resnames}
+    selection = ligand_selection(ligand_resnames)
     lig_top = app.Topology()
     atom_map = {}
     selected_indices: List[int] = []
@@ -35,7 +36,7 @@ def _extract_ligand_subset(
 
     for chain in topology.chains():
         for residue in chain.residues():
-            if residue.name.upper() not in ligand_names:
+            if not selection.matches(residue):
                 continue
             if chain not in chain_cache:
                 chain_cache[chain] = lig_top.addChain(chain.id)
@@ -130,10 +131,10 @@ def transfer_ligand_by_local_alignment(
 
     modeller = app.Modeller(mut.topology, mut.positions)
     existing_lig_residues = []
-    ligand_names = {name.upper() for name in ligand_resnames}
+    selection = ligand_selection(ligand_resnames)
     for chain in modeller.topology.chains():
         for residue in chain.residues():
-            if residue.name.upper() in ligand_names:
+            if selection.matches(residue):
                 existing_lig_residues.append(residue)
     if existing_lig_residues:
         modeller.delete(existing_lig_residues)

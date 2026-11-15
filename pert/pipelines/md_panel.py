@@ -29,6 +29,7 @@ from pert.pipelines.null_control import NullControlUnavailable, run_null_control
 from pert.pipelines.scenarios import collect_scenarios, scenario_seed_offsets, ScenarioDef, validate_scenarios
 from pert.pipelines.single_run import run_full_pipeline
 from pert.structure.residues import is_protein_residue, parse_residue_number, sequence_and_start_from_pdb
+from pert.structure.selection import ligand_selection
 from pert.visualization.panel_plots import plot_md_panel
 
 
@@ -52,12 +53,18 @@ def validate_panel_inputs(args: argparse.Namespace, scenarios: Sequence[Scenario
         raise ValueError("--replicas must be between 1 and 30.")
 
     ensure_openmm()
-    residue_names = {residue.name.upper() for residue in app.PDBFile(args.reference_pdb).topology.residues()}
-    if args.ligand_resname.upper() not in residue_names:
+    reference_residues = list(app.PDBFile(args.reference_pdb).topology.residues())
+    selection = ligand_selection(args.ligand_resname)
+    if not any(selection.matches(residue) for residue in reference_residues):
+        residue_names = {residue.name.upper() for residue in reference_residues}
         raise ValueError(
-            f"Ligand residue '{args.ligand_resname}' is not in {args.reference_pdb}. "
-            f"Non-protein residues found: {sorted(n for n in residue_names if not is_protein_residue(n))}"
+            f"The ligand ({selection.describe()}) is not in {args.reference_pdb}. "
+            f"Non-protein residues found: {sorted(n for n in residue_names if not is_protein_residue(n))}; "
+            f"chains: {sorted({residue.chain.id for residue in reference_residues})}. "
+            "Give a residue name (ZN) or, for a peptide ligand, its chain (chain:B)."
         )
+    if (args.chain_id or "") in selection.chains:
+        raise ValueError(f"Chain '{args.chain_id}' cannot be both the protein (--chain-id) and the ligand.")
     sequence, start_pos = sequence_and_start_from_pdb(args.reference_pdb, args.chain_id)
 
     # Mutation positions are mapped as "first residue number + index".  That is

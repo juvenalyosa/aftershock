@@ -12,6 +12,7 @@ from typing import List, Optional, Sequence, Tuple
 import numpy as np
 
 from pert.structure.binding_site import binding_site_keys_from_pdb
+from pert.structure.selection import ligand_selection
 from pert.visualization.vmd_common import site_selection_from_keys, tcl_braced_path
 
 
@@ -26,11 +27,8 @@ def write_vmd_comparison_script(
     latents_npz: Optional[str] = None,
 ) -> str:
     """Write the WT-vs-MUT comparison scene (side-by-side + differential site overlay + delta-latent panel)."""
-    ligand_tokens = [name.strip().upper() for name in ligand_resnames if name.strip()]
-    if ligand_tokens:
-        ligand_sel = " or ".join([f"resname {name}" for name in ligand_tokens])
-    else:
-        ligand_sel = "none"
+    ligand_tokens = ligand_selection(ligand_resnames)
+    ligand_sel = ligand_tokens.vmd()
 
     delta_latent_xy: List[Tuple[float, float]] = [(0.0, 0.0)]
     if latents_npz and os.path.exists(latents_npz):

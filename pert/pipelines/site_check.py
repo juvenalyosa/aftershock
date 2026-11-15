@@ -24,6 +24,10 @@ from pert.utils.paths import find_run_dirs, replicate_from_run_dir, resolve_run_
 from pert.visualization.panel_plots import plot_site_check
 
 
+class NoMetalSite(RuntimeError):
+    """The panel has no metal ion to follow (or none of its trajectories is available)."""
+
+
 def run_site_check(
     panel_dir: str,
     ligand_resnames: Optional[Sequence[str]] = None,
@@ -90,8 +94,8 @@ def run_site_check(
                                "donors": {d["donor"]: d["distance_ang"] for d in site["donors"]}})
 
     if not simulations:
-        reason = "; ".join(sorted({item["reason"] for item in skipped})) or "no run_summary.json found"
-        raise RuntimeError(f"No metal site could be followed under {panel_dir} ({reason}).")
+        reason = "; ".join(sorted({item["reason"] for item in skipped})) or "the ligand is not a metal ion"
+        raise NoMetalSite(f"No metal site to follow under {panel_dir} ({reason}).")
 
     os.makedirs(out_dir, exist_ok=True)
     simulations_csv = os.path.join(out_dir, "site_check_simulations.csv")

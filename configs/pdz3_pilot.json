@@ -1,0 +1,44 @@
+{
+  "panel": {
+    "reference_pdb": "data/pdz3/1BE9_pdz3_ref.pdb",
+    "template_pdb": "data/pdz3/1BE9_pdz3_ref.pdb",
+    "ligand_xml": "data/toy/empty_ligand.xml",
+    "ligand_resname": "chain:B",
+    "template": "1BE9A",
+    "chain_id": "A",
+    "output_dir": "runs/pdz3_pilot",
+    "mutation_sets": {
+      "wt_model": ["K355K"]
+    },
+    "replicas": 4,
+    "num_models": 8,
+    "num_processors": 1,
+    "temperature_k": 300.0,
+    "equil_steps": 500000,
+    "prod_steps": 12500000,
+    "report_interval": 10000,
+    "checkpoint_interval_steps": 1000000,
+    "platform": "AUTO",
+    "md_seed_base": 2300,
+    "rb_ang": 8.0,
+    "rp_ang": 14.0,
+    "grid_spacing_ang": 3.0,
+    "sigma_ang": 3.0,
+    "max_grid_points": 128,
+    "vamp_lag": 4,
+    "latent_b": 6,
+    "latent_p": 6,
+    "latent_l": 3,
+    "var_max_order": 3,
+    "te_surrogates": 64,
+    "te_seed_base": 300,
+    "max_null_pairs": 30
+  },
+  "notes": {
+    "system": "Third PDZ domain of PSD-95 (1BE9 chain A, 302-402) with the CRIPT peptide KQTSV (chain B), which is the ligand: 'chain:B'. Experimental reference: the effect of every single substitution on CRIPT binding (McLaughlin et al., Nature 2012) and the 21-fold loss of affinity on removing helix alpha3, residues 396-402 (Petit et al., PNAS 2009).",
+    "purpose": "Pilot, before any mutant: how long must a simulation be for the site to be sampled, and how different are two WT simulations? The only scenario is the modelled-WT control (silent K355K), so the panel holds 4 WT and 4 modelled-WT trajectories: 6 WT-vs-WT pairs.",
+    "what_to_read": "sampling_ok / effective samples of every run, the spread of the WT-vs-WT pairs (null_control), and whether wt_model stays inside it.",
+    "cost": "8 simulations of 25 ns (1251 frames each), about 17000 atoms per system.",
+    "to_extend": "Raise prod_steps and launch again: finished simulations are extended, not repeated."
+  }
+}

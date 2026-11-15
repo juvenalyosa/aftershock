@@ -34,6 +34,7 @@ import numpy as np
 
 from pert.deps import app, ensure_openmm, unit
 from pert.structure.comparison import aligned_ca_pair_records
+from pert.structure.selection import ligand_selection
 
 # Anchors closer to a straight line than this (second singular value of the
 # centred reference, nm) cannot define an orientation.
@@ -80,7 +81,7 @@ def build_shared_site_frames(
     are the anchors.
     """
     ensure_openmm()
-    ligand_names = {name.strip().upper() for name in ligand_resnames if name.strip()}
+    selection = ligand_selection(ligand_resnames)
     wt = app.PDBFile(wt_pdb)
     wt_pos = np.asarray(wt.positions.value_in_unit(unit.nanometer), dtype=np.float64)
     wt_atoms = list(wt.topology.atoms())
@@ -88,18 +89,18 @@ def build_shared_site_frames(
     ligand_idx = [
         atom.index
         for atom in wt_atoms
-        if atom.residue.name.upper() in ligand_names and (atom.element is None or atom.element.symbol != "H")
+        if selection.matches(atom.residue) and (atom.element is None or atom.element.symbol != "H")
     ]
     if not ligand_idx:
         raise ValueError(
-            f"No ligand atoms {sorted(ligand_names)} found in '{wt_pdb}'. The shared site frame "
+            f"No ligand atoms ({selection.describe()}) found in '{wt_pdb}'. The shared site frame "
             "needs the ligand to locate the site (use frame_mode='legacy_self' for ligand-free systems)."
         )
     ligand_xyz = wt_pos[ligand_idx]
     origin = ligand_xyz.mean(axis=0)
 
     # Distance of every paired residue to the ligand in the WT reference.
-    pairs = aligned_ca_pair_records(wt_pdb, mut_pdb)
+    pairs = aligned_ca_pair_records(wt_pdb, mut_pdb, selection)
     candidates = []
     for rec in pairs:
         residue = wt_atoms[int(rec["wt_atom_index"])].residue

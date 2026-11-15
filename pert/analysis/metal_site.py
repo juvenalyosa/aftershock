@@ -32,6 +32,7 @@ import numpy as np
 from pert.constants import METALS
 from pert.deps import app, ensure_openmm, unit
 from pert.structure.residues import is_protein_residue
+from pert.structure.selection import ligand_selection
 
 DONOR_ELEMENTS = ("N", "O", "S")
 WATER_RESNAMES = ("HOH", "WAT", "H2O", "TIP3", "TIP")
@@ -63,6 +64,9 @@ def metal_site_series(
     is the prepared (simulated) structure, whose atom order is the trajectory's.
     """
     ensure_openmm()
+    selection = ligand_selection(ligand_resnames)
+    if selection and not selection.resnames:
+        return []  # the ligand is a chain (a peptide): there is no metal site to follow
     pdb = app.PDBFile(pdb_path)
     atoms = list(pdb.topology.atoms())
     reference = np.asarray(pdb.positions.value_in_unit(unit.nanometer), dtype=np.float64)
@@ -82,7 +86,7 @@ def metal_site_series(
     # Orthorhombic boxes only (what the pipeline builds): the diagonal is enough.
     box_lengths = None if box is None else np.stack([box[:, i, i] for i in range(3)], axis=1)[:, None, :]
 
-    wanted = {name.strip().upper() for name in (ligand_resnames or []) if name.strip()}
+    wanted = set(selection.resnames)
     metals = [
         atom
         for atom in atoms

@@ -29,6 +29,7 @@ Fast-scan results are hypotheses; claims should rest on replicated MD
 pert/               Python package (see "Architecture")
 configs/            JSON configurations for runs and panels
 data/toy/           toy system: zinc finger 1ZNF + ligand force-field XML
+data/pdz3/          benchmark system: PDZ3 of PSD-95 with the CRIPT peptide (1BE9)
 data/benchmarks/    benchmark tables (smoke examples, template)
 scripts/            shell/python helpers (full 20 ns toy workflow, data prep)
 notebooks/          Google Colab notebook that runs a panel on a cloud GPU
@@ -259,7 +260,7 @@ A panel needs five things besides the mutations:
 | WT structure with the ligand bound | `--reference-pdb` | residue numbering here is the numbering of the mutations |
 | template structure for MODELLER | `--template-pdb`, `--template` | `--template` is the code + chain, e.g. `2ITYA`; usually the WT structure itself |
 | ligand force field | `--ligand-xml` | OpenMM XML with the ligand parameters |
-| ligand residue name | `--ligand-resname` | defines the site |
+| ligand | `--ligand-resname` | defines the site: a residue name (`ZN`, `HEM`) or, for a peptide or protein partner, its chain (`chain:B`) |
 | protein chain | `--chain-id` | default `A` |
 
 Scenarios are named mutation sets, given on the command line
@@ -276,6 +277,23 @@ the offending scenario.
 The reference chain must have no missing residues or insertion codes: mutation
 positions are mapped by counting from the first residue, so a gap would shift
 every later position. Model the gaps first.
+
+A **peptide ligand** (`chain:B`) uses the protein force field, so it needs no
+parameters of its own (`--ligand-xml data/toy/empty_ligand.xml`). Its residues
+are amino acids but not part of the protein under study: they form region `L`
+and are left out of the alignment, the site frame, the binding site and the
+residue rankings (`pert.structure.selection`).
+
+### The PDZ3 benchmark
+
+`data/pdz3/` holds the third PDZ domain of PSD-95 with its CRIPT peptide (PDB
+1BE9; prepared by `scripts/prepare_pdz3_1be9.py`), a system where the answer is
+known from experiment: the effect on CRIPT binding of every single substitution
+of the domain (McLaughlin et al., *Nature* 2012), and the 21-fold loss of
+affinity on deleting helix alpha3, far from the peptide (Petit et al., *PNAS*
+2009). `configs/pdz3_pilot.json` is the first step: WT and modelled-WT
+simulations only, to learn how long a simulation must be and how wide the
+WT-vs-WT null is before any mutant is simulated.
 
 Metal sites: residues that coordinate a metal ion are given the protonation
 state that makes coordination possible (cysteine thiolate, histidine protonated

@@ -20,6 +20,7 @@ import numpy as np
 
 from pert.constants import AA3_TO_1, HALOGENS, METALS, STANDARD_AA3_TO_1, TYPE_TO_INDEX
 from pert.deps import app, ensure_openmm, unit
+from pert.structure.selection import LigandSpec, ligand_selection
 
 
 # --- residue / atom classification -----------------------------------------
@@ -140,20 +141,22 @@ def ca_records_from_topology(
     return records
 
 
-def protein_ca_records(pdb_path: str) -> List[Dict[str, object]]:
+def protein_ca_records(pdb_path: str, ligand: LigandSpec = None) -> List[Dict[str, object]]:
     """C-alpha record of every standard residue of a PDB file.
 
     Each record is a dict with ``aa1``, ``residue_key`` (e.g. ``LYS2``), ``resid``,
     ``chain_id``, ``atom_index`` (index of the CA atom, usable on trajectories)
-    and ``coord`` (nm).
+    and ``coord`` (nm).  Residues of ``ligand`` (a peptide given as
+    ``chain:B``) are not part of the protein and are left out.
     """
+    selection = ligand_selection(ligand)
     pdb = app.PDBFile(pdb_path)
     pos_nm = np.asarray(pdb.positions.value_in_unit(unit.nanometer), dtype=float)
     out: List[Dict[str, object]] = []
     for chain in pdb.topology.chains():
         for residue in chain.residues():
             resname = residue.name.upper()
-            if resname not in STANDARD_AA3_TO_1:
+            if resname not in STANDARD_AA3_TO_1 or selection.matches(residue):
                 continue
             ca_atom = None
             for atom in residue.atoms():

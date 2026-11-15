@@ -16,6 +16,7 @@ from pert.structure.binding_site import read_binding_delta_csv
 from pert.structure.comparison import infer_mutation_anchor_from_structure
 from pert.structure.geometry import kabsch_align
 from pert.structure.residues import protein_ca_records
+from pert.structure.selection import ligand_selection
 from pert.visualization.vmd_common import selection_from_indices
 
 
@@ -25,6 +26,7 @@ def _latent_project_ca_vectors(
     mut_traj_npz: Optional[str],
     latents_npz: Optional[str],
     ridge: float = 1e-3,
+    ligand=None,
 ) -> Dict[str, np.ndarray]:
     """Per-residue displacement direction associated with the WT -> MUT shift of the pocket latents.
 
@@ -36,8 +38,8 @@ def _latent_project_ca_vectors(
     if not os.path.exists(mut_traj_npz) or not os.path.exists(latents_npz):
         return {}
 
-    mut_records = protein_ca_records(mut_pdb)
-    wt_records = protein_ca_records(wt_pdb)
+    mut_records = protein_ca_records(mut_pdb, ligand)
+    wt_records = protein_ca_records(wt_pdb, ligand)
     if len(mut_records) < 3 or len(wt_records) < 3:
         return {}
 
@@ -98,7 +100,7 @@ def write_mut_flow_vmd_script(
     max_vectors: int = 6,
 ) -> str:
     """Write the mutant-only scene with the pocket conformation map that follows the movie frame."""
-    mut_records = protein_ca_records(mut_pdb)
+    mut_records = protein_ca_records(mut_pdb, ligand_resname)
     mut_key_to_coord = {str(rec["residue_key"]): np.asarray(rec["coord"], dtype=float) for rec in mut_records}
     mut_key_to_resid = {str(rec["residue_key"]): str(rec["resid"]) for rec in mut_records}
     mut_key_to_chain = {str(rec["residue_key"]): str(rec["chain_id"]).strip() for rec in mut_records}
@@ -112,7 +114,7 @@ def write_mut_flow_vmd_script(
             return f"protein and name CA and chain {chain_id} and resid {resid}"
         return f"protein and name CA and resid {resid}"
 
-    anchor_center, hotspot_keys, _ = infer_mutation_anchor_from_structure(wt_pdb, mut_pdb, top_n=3)
+    anchor_center, hotspot_keys, _ = infer_mutation_anchor_from_structure(wt_pdb, mut_pdb, top_n=3, ligand=ligand_resname)
     delta_rows = read_binding_delta_csv(binding_csv)
     delta_rows = [(k, v) for (k, v) in delta_rows if k in mut_key_to_coord]
 
@@ -121,6 +123,7 @@ def write_mut_flow_vmd_script(
         mut_pdb=mut_pdb,
         mut_traj_npz=mut_traj_npz,
         latents_npz=latents_npz,
+        ligand=ligand_resname,
     )
     use_projection = any(key in proj_map for key, _ in delta_rows)
 
@@ -251,7 +254,7 @@ def write_mut_flow_vmd_script(
         "color Display Background white",
         f"set mut_pdb {{{os.path.abspath(mut_pdb).replace(os.sep, '/')}}}",
         f"set mut_dcd {{{os.path.abspath(mut_dcd).replace(os.sep, '/') if mut_dcd else ''}}}",
-        f"set ligand_sel {{resname {ligand_resname.upper()}}}",
+        f"set ligand_sel {{{ligand_selection(ligand_resname).vmd()}}}",
         f"set site_cutoff {float(cutoff_ang):.3f}",
         f"set anchor_sel_text {{{anchor_sel_text}}}",
         f"set anchor_fallback {_fmt_vec_ang(anchor_center)}",
@@ -546,7 +549,7 @@ def write_flow_network_vmd_script(
         "color Display Background white",
         f"set mut_pdb {{{os.path.abspath(mut_pdb).replace(os.sep, '/')}}}",
         f"set mut_dcd {{{os.path.abspath(mut_dcd).replace(os.sep, '/') if mut_dcd else ''}}}",
-        f"set ligand_sel {{resname {ligand_resname.upper()}}}",
+        f"set ligand_sel {{{ligand_selection(ligand_resname).vmd()}}}",
         f"set source_sel {{{source_sel}}}",
         f"set target_sel {{{target_sel}}}",
         f"set flow_waypoints {{{flow_waypoints_tcl}}}",

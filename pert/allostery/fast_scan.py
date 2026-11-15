@@ -71,14 +71,14 @@ def _bfs_distances(adj: np.ndarray, sources: Sequence[int]) -> np.ndarray:
 # --- WT <-> MUT residue correspondence -----------------------------------------------
 
 
-def _make_pairs_with_indels(wt_pdb: str, mut_pdb: str) -> Tuple[List[Dict[str, Any]], List[str]]:
+def _make_pairs_with_indels(wt_pdb: str, mut_pdb: str, ligand=None) -> Tuple[List[Dict[str, Any]], List[str]]:
     """Residue rows of the mutant with their WT partner, inferred by sequence alignment.
 
     Also returns the WT residues that were deleted.  Rows flag insertions,
     substitutions and the neighbours of deletions.
     """
-    wt_records = protein_ca_records(wt_pdb)
-    mut_records = protein_ca_records(mut_pdb)
+    wt_records = protein_ca_records(wt_pdb, ligand)
+    mut_records = protein_ca_records(mut_pdb, ligand)
     if len(wt_records) < 3 or len(mut_records) < 3:
         raise ValueError("Need at least 3 CA residues in both WT and MUT.")
 
@@ -154,6 +154,7 @@ def _make_pairs_from_mutation_specs(
     wt_pdb: str,
     mut_pdb: str,
     mutation_specs: Sequence[str],
+    ligand=None,
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     """Residue rows of the mutant with their WT partner, derived exactly from the mutation specs.
 
@@ -161,8 +162,8 @@ def _make_pairs_from_mutation_specs(
     which reference position and which mutation it came from.  Fails if the
     specs do not reproduce the sequence of the mutant structure.
     """
-    wt_records = protein_ca_records(wt_pdb)
-    mut_records = protein_ca_records(mut_pdb)
+    wt_records = protein_ca_records(wt_pdb, ligand)
+    mut_records = protein_ca_records(mut_pdb, ligand)
     if len(wt_records) < 3 or len(mut_records) < 3:
         raise ValueError("Need at least 3 CA residues in both WT and MUT.")
 
@@ -286,9 +287,9 @@ def run_fast_scan(
     os.makedirs(output_dir, exist_ok=True)
 
     if mutation_specs:
-        rows, deleted_wt_residues = _make_pairs_from_mutation_specs(wt_pdb, mut_pdb, mutation_specs)
+        rows, deleted_wt_residues = _make_pairs_from_mutation_specs(wt_pdb, mut_pdb, mutation_specs, ligand_resname)
     else:
-        rows, deleted_wt_residues = _make_pairs_with_indels(wt_pdb, mut_pdb)
+        rows, deleted_wt_residues = _make_pairs_with_indels(wt_pdb, mut_pdb, ligand_resname)
     mut_aligned, paired_wt_coords, ca_rmsd_ang = _align_mutant_coords(rows)
     mut_coords = np.stack([np.asarray(row["mut_coord_nm"], dtype=float) for row in rows], axis=0)
     mut_dist = _distance_matrix(mut_coords)

@@ -70,9 +70,8 @@ echo "[1/7] Running the MD panel (build, MD, analysis, null control)..."
 pert md-panel-config --config "${CONFIG_PATH}"
 
 echo "[2/7] Checking that the metal site holds together in every simulation..."
-# Not fatal: a panel whose ligand is not a metal ion has nothing to check.
-pert site-check --panel-dir "${OUTPUT_DIR}" --ligand-resname "${LIGAND_RESNAME}" \
-  || echo "  (no metal site to check for ligand ${LIGAND_RESNAME})"
+# A panel whose ligand is not a metal ion has nothing to check, and says so.
+pert site-check --panel-dir "${OUTPUT_DIR}" --ligand-resname "${LIGAND_RESNAME}"
 
 RUN_DIRS=()
 while IFS= read -r run_dir; do
@@ -127,7 +126,9 @@ done
 
 echo "Done. Panel outputs are in: ${OUTPUT_DIR}"
 echo "Null control (is it more than noise?): ${OUTPUT_DIR}/null_control/null_control_summary.json"
-echo "Metal-site check (did the site survive?): ${OUTPUT_DIR}/site_check/site_check_simulations.csv"
+if [[ -f "${OUTPUT_DIR}/site_check/site_check_simulations.csv" ]]; then
+  echo "Metal-site check (did the site survive?): ${OUTPUT_DIR}/site_check/site_check_simulations.csv"
+fi
 echo "Consensus ranking: ${OUTPUT_DIR}/allostery_consensus_residues.csv"
 echo "Evidence report: ${OUTPUT_DIR}/allostery_evidence_report.md"
 echo "Per-run reports: ${OUTPUT_DIR}/<scenario>/<replicate>/analysis/reader_report.md"

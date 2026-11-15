@@ -196,7 +196,7 @@ def run_allostery_ranking(
             out_csv=binding_csv,
         )
 
-    pair_records = aligned_ca_pair_records(wt_pdb, mut_pdb)
+    pair_records = aligned_ca_pair_records(wt_pdb, mut_pdb, ligand_resname)
     wt_idx = np.asarray([int(rec["wt_atom_index"]) for rec in pair_records], dtype=int)
     mut_idx = np.asarray([int(rec["mut_atom_index"]) for rec in pair_records], dtype=int)
 
@@ -221,6 +221,7 @@ def run_allostery_ranking(
         wt_pdb,
         mut_pdb,
         top_n=max(1, int(source_hotspots)),
+        ligand=ligand_resname,
     )
     binding_keys = read_binding_residue_keys(binding_csv)
     source_idx = indices_from_mut_residue_keys(pair_records, hotspot_keys)

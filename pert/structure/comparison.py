@@ -15,17 +15,19 @@ import numpy as np
 from pert.sequence.alignment import needleman_wunsch_affine
 from pert.structure.geometry import kabsch_align
 from pert.structure.residues import protein_ca_records
+from pert.structure.selection import LigandSpec
 
 
-def aligned_ca_pair_records(wt_pdb: str, mut_pdb: str) -> List[Dict[str, object]]:
+def aligned_ca_pair_records(wt_pdb: str, mut_pdb: str, ligand: LigandSpec = None) -> List[Dict[str, object]]:
     """Pair WT and mutant residues through sequence alignment.
 
     Returns one record per residue present in *both* structures, with the CA atom
     index in each topology, so the same residue can be followed in the WT and the
-    mutant trajectories.  Inserted/deleted residues are left out.
+    mutant trajectories.  Inserted/deleted residues are left out, and so are the
+    residues of ``ligand`` (a peptide ligand is not part of the protein).
     """
-    wt_records = protein_ca_records(wt_pdb)
-    mut_records = protein_ca_records(mut_pdb)
+    wt_records = protein_ca_records(wt_pdb, ligand)
+    mut_records = protein_ca_records(mut_pdb, ligand)
     if len(wt_records) < 3 or len(mut_records) < 3:
         raise ValueError("Need at least 3 CA residues in both WT and MUT.")
 
@@ -74,6 +76,7 @@ def infer_mutation_anchor_from_structure(
     wt_pdb: str,
     mut_pdb: str,
     top_n: int = 3,
+    ligand: LigandSpec = None,
 ) -> Tuple[np.ndarray, List[str], Dict[str, float]]:
     """Locate where the mutation perturbs the structure.
 
@@ -81,8 +84,8 @@ def infer_mutation_anchor_from_structure(
     Returns ``(centre of the top_n residues, their keys, displacement per residue key)``.
     The top residues are used as *sources* of the perturbation.
     """
-    wt_records = protein_ca_records(wt_pdb)
-    mut_records = protein_ca_records(mut_pdb)
+    wt_records = protein_ca_records(wt_pdb, ligand)
+    mut_records = protein_ca_records(mut_pdb, ligand)
     if len(wt_records) < 3 or len(mut_records) < 3:
         raise ValueError("Need at least 3 CA records in WT and MUT for mutation anchor inference.")
 

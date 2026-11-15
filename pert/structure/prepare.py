@@ -18,10 +18,10 @@ from dataclasses import asdict
 from typing import Optional
 
 from pert.config import BuildConfig, PreparedStructures
-from pert.deps import ensure_openmm
+from pert.deps import app, ensure_openmm
 from pert.sequence.mutations import mutate_sequence, MutationError
 from pert.structure.ligand import transfer_ligand_by_local_alignment
-from pert.structure.residues import sequence_and_start_from_pdb
+from pert.structure.residues import is_protein_residue, parse_residue_number, sequence_and_start_from_pdb
 from pert.utils.paths import pushd
 
 
@@ -63,6 +63,38 @@ def _reusable_build(record_path: str, signature: str, files) -> Optional[Prepare
             "resume=False (--no-resume) to rebuild."
         )
     return PreparedStructures(**record["structures"])
+
+
+def _number_like_the_reference(pdb_path: str, chain_id: Optional[str], start_pos: int) -> bool:
+    """Number the protein chain of a model consecutively from ``start_pos``.
+
+    MODELLER numbers its models from 1.  When the reference starts elsewhere
+    (a domain cut from a longer protein), residue 372 of the WT would be called
+    71 in the mutant, and every table that joins the two by residue name would
+    silently fail to match them.  After a substitution the mutant now has the
+    numbering of the reference; after an insertion or deletion the residues
+    that follow are shifted, as their sequence positions are.
+
+    The file is left untouched when it is already numbered that way.  Returns
+    whether it was rewritten.
+    """
+    pdb = app.PDBFile(pdb_path)
+    residues = [
+        residue
+        for chain in pdb.topology.chains()
+        if not chain_id or chain.id == chain_id
+        for residue in chain.residues()
+        if is_protein_residue(residue.name)
+    ]
+    wanted = [str(start_pos + offset) for offset in range(len(residues))]
+    if [str(parse_residue_number(residue.id)) for residue in residues] == wanted:
+        return False
+    for residue, number in zip(residues, wanted):
+        residue.id = number
+        residue.insertionCode = ""
+    with open(pdb_path, "w", encoding="utf-8") as handle:
+        app.PDBFile.writeFile(pdb.topology, pdb.positions, handle, keepIds=True)
+    return True
 
 
 def prepare_structures(config: BuildConfig, output_dir: str, resume: bool = False) -> PreparedStructures:
@@ -134,6 +166,7 @@ def prepare_structures(config: BuildConfig, output_dir: str, resume: bool = Fals
 
     shutil.copy2(reference_pdb, wt_out)
     shutil.copy2(best_abs, mutant_raw_out)
+    _number_like_the_reference(mutant_raw_out, config.chain_id, start_pos)
 
     transfer_info = transfer_ligand_by_local_alignment(
         reference_pdb=reference_pdb,

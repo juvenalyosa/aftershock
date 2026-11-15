@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from pert.structure.binding_site import read_binding_residue_keys
+from pert.structure.selection import ligand_selection
 from pert.utils.io import load_json, md_table
 from pert.utils.paths import resolve_run_path
 
@@ -445,7 +446,7 @@ def write_reader_report(run_dir: str, out_path: str) -> str:
     lines.append("")
 
     lines.append("## 12) Binding-site definition used here")
-    lines.append(f"- Ligand resname: `{ligand_resname}` (selection is `resname {ligand_resname}`)")
+    lines.append(f"- Ligand: `{ligand_resname}` (selection is `{ligand_selection(ligand_resname).vmd()}`)")
     lines.append(f"- Binding-site residues file: `{rel(paths.binding_csv)}`")
     lines.append(f"- Binding-site residue keys (count {len(binding_res_keys)}): `{', '.join(binding_res_keys) if binding_res_keys else 'NA'}`")
     lines.append("")

@@ -135,10 +135,11 @@ def source_target_indices(
     wt_pdb: str,
     mut_pdb: str,
     binding_csv: str,
+    ligand=None,
 ) -> Tuple[List[int], List[int]]:
     """Source residues (largest structural displacement) and target residues (binding site)."""
     try:
-        _, hotspot_keys, _ = infer_mutation_anchor_from_structure(wt_pdb, mut_pdb, top_n=4)
+        _, hotspot_keys, _ = infer_mutation_anchor_from_structure(wt_pdb, mut_pdb, top_n=4, ligand=ligand)
     except Exception:
         hotspot_keys = []
     binding_keys = read_binding_residue_keys(binding_csv)

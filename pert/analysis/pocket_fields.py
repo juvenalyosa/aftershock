@@ -34,6 +34,7 @@ from pert.config import FieldConfig
 from pert.constants import TYPE_BINS, WATER_RESNAMES
 from pert.deps import app, unit
 from pert.structure.residues import atom_type_bin, is_protein_residue
+from pert.structure.selection import ligand_selection
 
 
 # --- grid and moving pocket frame ---------------------------------------------
@@ -81,7 +82,7 @@ def _select_anchor_indices(
     ligand_resnames: Sequence[str],
 ) -> np.ndarray:
     """Atoms that define the pocket frame: ligand heavy atoms, else all ligand atoms, else the first 20 C-alphas."""
-    ligand_names = {name.upper() for name in ligand_resnames}
+    selection = ligand_selection(ligand_resnames)
     heavy: List[int] = []
     all_ligand: List[int] = []
     ca_fallback: List[int] = []
@@ -89,7 +90,7 @@ def _select_anchor_indices(
     for atom in topology.atoms():
         if atom.name == "CA":
             ca_fallback.append(atom.index)
-        if atom.residue.name.upper() in ligand_names:
+        if selection.matches(atom.residue):
             all_ligand.append(atom.index)
             if atom.element is None or atom.element.symbol.upper() != "H":
                 heavy.append(atom.index)
@@ -157,7 +158,7 @@ def _classify_atoms(
     ligand_resnames: Sequence[str],
 ) -> Dict[str, np.ndarray]:
     """Boolean masks (ligand / protein / cofactor / water), element channel and mass of every atom."""
-    ligand_names = {name.upper() for name in ligand_resnames}
+    selection = ligand_selection(ligand_resnames)
     n_atoms = topology.getNumAtoms()
     is_ligand = np.zeros(n_atoms, dtype=bool)
     is_protein = np.zeros(n_atoms, dtype=bool)
@@ -169,7 +170,7 @@ def _classify_atoms(
     for atom in topology.atoms():
         idx = atom.index
         resname = atom.residue.name.upper()
-        if resname in ligand_names:
+        if selection.matches(atom.residue):
             is_ligand[idx] = True
         elif resname in WATER_RESNAMES:
             is_water[idx] = True

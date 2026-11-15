@@ -15,6 +15,7 @@ import numpy as np
 
 from pert.constants import AA3_TO_1, STANDARD_AA3
 from pert.deps import app, ensure_openmm, unit
+from pert.structure.selection import ligand_selection
 
 
 def binding_site_keys_from_pdb(
@@ -24,12 +25,12 @@ def binding_site_keys_from_pdb(
 ) -> List[Tuple[str, str]]:
     """``(chain, resid)`` of protein residues with a heavy atom within ``cutoff_ang`` of any ligand."""
     ensure_openmm()
-    ligand_set = {name.strip().upper() for name in ligand_resnames if name.strip()}
-    if not ligand_set:
+    selection = ligand_selection(ligand_resnames)
+    if not selection:
         return []
     pdb = app.PDBFile(pdb_path)
     pos_nm = np.asarray(pdb.positions.value_in_unit(unit.nanometer), dtype=float)
-    lig_idx = [atom.index for atom in pdb.topology.atoms() if atom.residue.name.upper() in ligand_set]
+    lig_idx = [atom.index for atom in pdb.topology.atoms() if selection.matches(atom.residue)]
     if not lig_idx:
         return []
     lig_xyz = pos_nm[lig_idx]
@@ -38,7 +39,7 @@ def binding_site_keys_from_pdb(
     for chain in pdb.topology.chains():
         chain_id = (chain.id or "").strip()
         for residue in chain.residues():
-            if residue.name.upper() not in AA3_TO_1:
+            if residue.name.upper() not in AA3_TO_1 or selection.matches(residue):
                 continue
             atom_idx = [a.index for a in residue.atoms() if (a.element is None or a.element.symbol != "H")]
             if not atom_idx:
@@ -64,9 +65,10 @@ def binding_site_residues(
     pos_nm = np.asarray(pdb.positions.value_in_unit(unit.nanometer), dtype=float)
     cutoff_nm = cutoff_ang * 0.1
 
+    selection = ligand_selection(ligand_resname)
     ligand_indices = []
     for atom in pdb.topology.atoms():
-        if atom.residue.name.upper() == ligand_resname.upper():
+        if selection.matches(atom.residue):
             ligand_indices.append(atom.index)
     if not ligand_indices:
         return []
@@ -74,7 +76,7 @@ def binding_site_residues(
     lig_xyz = pos_nm[ligand_indices]
     result = []
     for residue in pdb.topology.residues():
-        if residue.name.upper() not in STANDARD_AA3:
+        if residue.name.upper() not in STANDARD_AA3 or selection.matches(residue):
             continue
         atom_indices = [a.index for a in residue.atoms() if (a.element is None or a.element.symbol != "H")]
         if not atom_indices:

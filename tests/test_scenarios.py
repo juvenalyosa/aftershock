@@ -142,7 +142,7 @@ def test_panel_preflight_stops_on_bad_inputs(repo_root, tmp_path):
     scenarios = [("k2r", ["K2R"])]
     with pytest.raises(FileNotFoundError, match="reference PDB"):
         validate_panel_inputs(_panel_args(repo_root, reference_pdb=str(tmp_path / "missing.pdb")), scenarios)
-    with pytest.raises(ValueError, match="Ligand residue 'XYZ'"):
+    with pytest.raises(ValueError, match=r"The ligand \(resname XYZ\)"):
         validate_panel_inputs(_panel_args(repo_root, ligand_resname="XYZ"), scenarios)
     with pytest.raises(ValueError, match="Scenario 'bad'"):
         validate_panel_inputs(_panel_args(repo_root), [("bad", ["A2R"])])

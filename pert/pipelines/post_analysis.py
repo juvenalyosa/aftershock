@@ -63,7 +63,7 @@ def run_residue_flow_analysis(
     Writes ``residue_flow_graph.npz``, ``flow_summary.json``,
     ``plot_flow_timeseries.png`` and ``view_flow_network.vmd.tcl`` to ``output_dir``.
     """
-    pair_records = aligned_ca_pair_records(wt_pdb, mut_pdb)
+    pair_records = aligned_ca_pair_records(wt_pdb, mut_pdb, ligand_resname)
     wt_idx = np.asarray([int(rec["wt_atom_index"]) for rec in pair_records], dtype=int)
     mut_idx = np.asarray([int(rec["mut_atom_index"]) for rec in pair_records], dtype=int)
 
@@ -84,7 +84,9 @@ def run_residue_flow_analysis(
     signal_wt = build_residue_motion_signals(wt_pos, wt_vel, velocity_weight=0.35)
     signal_mut = build_residue_motion_signals(mut_pos, mut_vel, velocity_weight=0.35)
 
-    source_idx, target_idx = source_target_indices(pair_records, wt_pdb=wt_pdb, mut_pdb=mut_pdb, binding_csv=binding_csv)
+    source_idx, target_idx = source_target_indices(
+        pair_records, wt_pdb=wt_pdb, mut_pdb=mut_pdb, binding_csv=binding_csv, ligand=ligand_resname
+    )
     te_wt = pairwise_te_matrix(signal_wt, lag=1)
     te_mut = pairwise_te_matrix(signal_mut, lag=1)
     te_delta = te_mut - te_wt

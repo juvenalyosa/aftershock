@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
+from pert.structure.selection import ligand_selection
 from pert.utils.io import load_json
 from pert.utils.paths import resolve_run_path
 from pert.visualization.vmd_common import (
@@ -55,7 +56,7 @@ def write_hotspot_vmd(
         "color Display Background white",
         f"set mut_pdb {tcl_braced_path(mut_pdb)}",
         f"set mut_dcd {tcl_braced_path(mut_dcd)}",
-        f"set ligand_sel {{resname {ligand_resname.upper()}}}",
+        f"set ligand_sel {{{ligand_selection(ligand_resname).vmd()}}}",
         f"set hotspot_sel {{{hotspot_sel}}}",
         f"set source_sel {{{source_sel}}}",
         f"set target_sel {{{target_sel}}}",
@@ -146,7 +147,7 @@ def write_fast_scan_vmd(
         "axes location Off",
         "color Display Background white",
         f"set mut_pdb {tcl_braced_path(mut_pdb)}",
-        f"set ligand_sel {{resname {ligand_resname.upper()}}}",
+        f"set ligand_sel {{{ligand_selection(ligand_resname).vmd()}}}",
         f"set hotspot_sel {{{hotspot_sel}}}",
         f"set source_sel {{{source_sel}}}",
         f"set target_sel {{{target_sel}}}",
@@ -244,7 +245,7 @@ def write_consensus_vmd(
         "color Display Background white",
         f"set mut_pdb {tcl_braced_path(mut_pdb)}",
         f"set mut_dcd {tcl_braced_path(mut_dcd)}",
-        f"set ligand_sel {{resname {ligand_resname.upper()}}}",
+        f"set ligand_sel {{{ligand_selection(ligand_resname).vmd()}}}",
         f"set hotspot_sel {{{hotspot_sel}}}",
         "mol new $mut_pdb type pdb waitfor all",
         "set mid [molinfo top]",
