@@ -23,20 +23,40 @@ Outputs, in ``<panel_dir>/null_control`` by default:
 * ``null/`` and ``observed/``     the underlying analysis results
 
 With few WT replicas the test is coarse: the smallest attainable p-value is
-``1 / (1 + n_null)``.  More replicas give a sharper null.  Each scenario gets
-an ``evidence`` level that says so explicitly:
+``1 / (1 + n_null)``.  More replicas give a sharper null.
 
-* ``none``       - no metric separates the scenario from the WT-vs-WT pairs;
-* ``suggestive`` - in at least one metric every replica exceeds every null
-  pair, but there are too few null pairs or replicas to call it significant;
-* ``supported``  - the same, with at least two replicas and enough null pairs
-  for a per-run p <= 0.05.  Five metrics are examined and no multiple-testing
-  correction is applied, so treat a single supporting metric with care.
+A metric *counts* for a scenario when every replica exceeds every WT-vs-WT
+pair, and in addition
+
+* the metric is not saturated in the null: if two WT simulations already reach
+  the ceiling of a bounded metric (a total-variation distance of 0.999 out of
+  1), exceeding them says nothing;
+* every replica also exceeds the modelled-WT control, when the panel has one.
+  A scenario whose "mutant" has the WT sequence (a silent substitution such as
+  ``K2K``) is recognised as that control: it differs from the WT only by having
+  been rebuilt by the modeller, so whatever it reaches is not a mutation effect.
+
+Each scenario then gets an ``evidence`` level:
+
+* ``none``       - no metric counts;
+* ``suggestive`` - some metric counts, but there are too few replicas or null
+  pairs for significance, or the simulations are not converged (fewer
+  effective samples than ``MIN_EFFECTIVE_SAMPLES``: each trajectory mostly
+  shows where it happened to sit);
+* ``supported``  - some metric counts, with at least two replicas, enough null
+  pairs for a per-run p <= 0.05, and converged simulations.  Five metrics are
+  examined and no multiple-testing correction is applied, so treat a single
+  supporting metric with care.
+
+``recalibrate_null_control`` re-derives the verdicts of a panel from the pairs
+already computed, without the trajectories (after a change of rules, or on a
+copy of the results that does not carry them).
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 from dataclasses import asdict, dataclass, fields
 from itertools import combinations
@@ -44,15 +64,25 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from pert.analysis.ensemble import MIN_EFFECTIVE_SAMPLES
 from pert.analysis.topology_safe import COMPARISON_METRICS, comparison_metrics, run_topology_safe_analysis
 from pert.config import FieldConfig, LatentConfig, TEConfig
 from pert.structure.residues import protein_ca_records
-from pert.utils.io import load_json, write_csv
+from pert.utils.io import load_json, read_csv, write_csv
 from pert.utils.paths import find_run_dirs, replicate_from_run_dir, resolve_run_path, scenario_from_run_dir
 from pert.visualization.panel_plots import plot_null_control
 
 # A run can only reach p <= 0.05 against the null if there are at least this many pairs.
 MIN_NULL_PAIRS_FOR_SIGNIFICANCE = 19
+
+# Range of the bounded metrics, and how close to the ceiling the WT-vs-WT pairs
+# may come (as a fraction of the range) before the metric is called saturated.
+METRIC_RANGE = {
+    "js_divergence": (0.0, math.log(2.0)),
+    "classifier_auc": (0.5, 1.0),
+    "basin_population_tv": (0.0, 1.0),
+}
+SATURATION_FRACTION = 0.01
 
 # TE settings assumed for panels analysed before ``te_config`` was recorded
 # (they are the defaults of ``pert md-panel``).
@@ -75,6 +105,12 @@ class _Run:
     mut_pdb: str
     mut_npz: str
     wt_sequence: str
+    mut_sequence: str = ""
+
+    @property
+    def is_control(self) -> bool:
+        """The "mutant" has the WT sequence: a modelled-WT control, not a mutation."""
+        return bool(self.mut_sequence) and self.mut_sequence == self.wt_sequence
 
     @property
     def label(self) -> str:
@@ -84,8 +120,16 @@ class _Run:
 # --- inputs ----------------------------------------------------------------------------------
 
 
-def _collect_runs(panel_dir: str) -> Tuple[List[_Run], List[Dict[str, str]]]:
-    """Runs of the panel that still have both trajectories, and the ones that do not."""
+def _sequence(pdb_path: str) -> str:
+    return "".join(str(rec["aa1"]) for rec in protein_ca_records(pdb_path))
+
+
+def _collect_runs(panel_dir: str, require_trajectories: bool = True) -> Tuple[List[_Run], List[Dict[str, str]]]:
+    """Runs of the panel that still have their files, and the ones that do not.
+
+    The prepared structures are always needed (they give the sequences); the
+    trajectories only when something has to be analysed.
+    """
     runs: List[_Run] = []
     skipped: List[Dict[str, str]] = []
     for run_dir in find_run_dirs(panel_dir):
@@ -101,17 +145,18 @@ def _collect_runs(panel_dir: str) -> Tuple[List[_Run], List[Dict[str, str]]]:
         except (KeyError, TypeError, ValueError) as exc:
             skipped.append({"run_dir": run_dir, "reason": f"unreadable run_summary.json ({exc})"})
             continue
-        missing = [name for name, path in paths.items() if not os.path.exists(path)]
+        needed = [name for name in paths if require_trajectories or name.endswith("_pdb")]
+        missing = [name for name in needed if not os.path.exists(paths[name])]
         if missing:
             skipped.append({"run_dir": run_dir, "reason": f"missing files: {', '.join(missing)}"})
             continue
-        sequence = "".join(str(rec["aa1"]) for rec in protein_ca_records(paths["wt_pdb"]))
         runs.append(
             _Run(
                 scenario=scenario_from_run_dir(run_dir),
                 replicate=replicate_from_run_dir(run_dir),
                 run_dir=run_dir,
-                wt_sequence=sequence,
+                wt_sequence=_sequence(paths["wt_pdb"]),
+                mut_sequence=_sequence(paths["mut_pdb"]),
                 **paths,
             )
         )
@@ -280,28 +325,224 @@ def run_null_control(
         name = f"{wt_a.label}__vs__{wt_b.label}"
         results = analyse(wt_a, wt_b.wt_pdb, wt_b.wt_npz, os.path.join(out_dir, "null", name))
         pair_rows.append({"pair": name, "wt_a": wt_a.label, "wt_b": wt_b.label, **comparison_metrics(results)})
-    null_values = {m: [float(row[m]) for row in pair_rows] for m in COMPARISON_METRICS}
 
     # --- observed: WT_i vs MUT_i -----------------------------------------------------------
-    run_rows: List[Dict[str, Any]] = []
-    reanalysed = 0
+    observed: List[Tuple[_Run, Dict[str, Any], str]] = []
     for run in runs:
         stored_path = os.path.join(run.run_dir, "analysis", "analysis_results.json")
         stored = load_json(stored_path) if os.path.exists(stored_path) else None
         if reuse_run_analysis and stored and _same_method(stored, field_cfg, latent_cfg, te_cfg, ligand_resnames):
-            results, source = stored, "run analysis"
+            observed.append((run, stored, "run analysis"))
         else:
             results = analyse(run, run.mut_pdb, run.mut_npz, os.path.join(out_dir, "observed", run.label))
-            source, reanalysed = "re-analysed", reanalysed + 1
+            observed.append((run, results, "re-analysed"))
+
+    settings = {
+        "ligand_resnames": ligand_resnames,
+        "temperature_k": temperature_k,
+        "field_config": asdict(field_cfg),
+        "latent_config": asdict(latent_cfg),
+        "te_config": {**asdict(te_cfg), "ridge_values": [float(v) for v in te_cfg.ridge_values]},
+    }
+    return _calibrate_and_write(panel_dir, out_dir, pair_rows, observed, settings, skipped, notes)
+
+
+def recalibrate_null_control(panel_dir: str, output_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Re-derive the verdicts of a panel from the WT-vs-WT pairs already computed.
+
+    Nothing is re-analysed and no trajectory is read: the pairs come from
+    ``null_control_pairs.csv`` and the observed values from the stored analysis
+    of each run, exactly as the null control used them.  Use it after the
+    rules for the verdicts change, or on a copy of the results without
+    trajectories.
+    """
+    panel_dir = os.path.abspath(panel_dir)
+    out_dir = os.path.abspath(output_dir or os.path.join(panel_dir, "null_control"))
+    pairs_csv = os.path.join(out_dir, "null_control_pairs.csv")
+    if not os.path.exists(pairs_csv):
+        raise NullControlUnavailable(f"No null control to recalibrate: '{pairs_csv}' does not exist. Run `pert null-control` first.")
+    pair_rows: List[Dict[str, Any]] = []
+    for raw in read_csv(pairs_csv):
+        row: Dict[str, Any] = dict(raw)
+        for key in ("te_delta",) + tuple(COMPARISON_METRICS):
+            if key in row:
+                row[key] = float(row[key])
+        pair_rows.append(row)
+    if not pair_rows:
+        raise NullControlUnavailable(f"'{pairs_csv}' holds no WT-vs-WT pair.")
+
+    previous: Dict[str, Any] = {}
+    previous_path = os.path.join(out_dir, "null_control_summary.json")
+    if os.path.exists(previous_path):
+        previous = load_json(previous_path)
+    settings = {
+        key: previous.get(key)
+        for key in ("ligand_resnames", "temperature_k", "field_config", "latent_config", "te_config")
+    }
+
+    runs, skipped = _collect_runs(panel_dir, require_trajectories=False)
+    observed: List[Tuple[_Run, Dict[str, Any], str]] = []
+    for run in runs:
+        # A run the null control had to re-analyse keeps that result in observed/.
+        candidates = [
+            (os.path.join(out_dir, "observed", run.label, "analysis_results.json"), "re-analysed"),
+            (os.path.join(run.run_dir, "analysis", "analysis_results.json"), "run analysis"),
+        ]
+        for path, source in candidates:
+            if os.path.exists(path):
+                observed.append((run, load_json(path), source))
+                break
+        else:
+            skipped.append({"run_dir": run.run_dir, "reason": "no stored analysis_results.json"})
+    if not observed:
+        raise NullControlUnavailable(f"No analysed run under {panel_dir}.")
+    notes = ["Verdicts recalibrated from the stored WT-vs-WT pairs; nothing was re-analysed."]
+    return _calibrate_and_write(panel_dir, out_dir, pair_rows, observed, settings, skipped, notes)
+
+
+# --- verdicts ------------------------------------------------------------------------------------
+
+
+def _saturated_in_null(metric: str, null_max: Optional[float]) -> bool:
+    """Do two WT simulations already reach the ceiling of this (bounded) metric?"""
+    if metric not in METRIC_RANGE or null_max is None or not np.isfinite(null_max):
+        return False
+    low, high = METRIC_RANGE[metric]
+    return bool(null_max >= high - SATURATION_FRACTION * (high - low))
+
+
+def scenario_verdicts(run_rows: Sequence[Dict[str, Any]], null_values: Dict[str, Sequence[float]]) -> Dict[str, Dict[str, Any]]:
+    """Evidence level of every scenario (rules in the module docstring).
+
+    ``run_rows`` are the calibrated runs: ``scenario``, ``control``,
+    ``sampling_ok``, ``effective_samples_min`` and, per metric, the value and
+    its ``_z``, ``_p`` and ``_beyond_null``.
+    """
+    n_null = max((len(values) for values in null_values.values()), default=0)
+    null_max = {
+        m: (float(np.nanmax(values)) if len(values) and np.any(np.isfinite(values)) else None)
+        for m, values in null_values.items()
+    }
+    controls = sorted({str(row["scenario"]) for row in run_rows if row.get("control")})
+    control_max = {
+        m: max((float(row[m]) for row in run_rows if row.get("control") and np.isfinite(row[m])), default=None)
+        for m in COMPARISON_METRICS
+    }
+
+    scenarios: Dict[str, Dict[str, Any]] = {}
+    for scenario in sorted({str(row["scenario"]) for row in run_rows}):
+        rows = [row for row in run_rows if row["scenario"] == scenario]
+        is_control = scenario in controls
+        entry: Dict[str, Any] = {"replicas": len(rows), "is_control": is_control, "metrics": {}}
+        beyond: List[str] = []
+        supporting: List[str] = []
+        excluded: Dict[str, str] = {}
+        for m in COMPARISON_METRICS:
+            values = np.asarray([row[m] for row in rows], dtype=float)
+            z = np.asarray([np.nan if row[f"{m}_z"] is None else row[f"{m}_z"] for row in rows], dtype=float)
+            p = [row[f"{m}_p"] for row in rows if row[f"{m}_p"] is not None]
+            all_beyond = bool(all(row[f"{m}_beyond_null"] for row in rows))
+            saturated = _saturated_in_null(m, null_max.get(m))
+            beyond_control: Optional[bool] = None
+            if controls and not is_control and control_max[m] is not None:
+                beyond_control = bool(all(float(row[m]) > control_max[m] for row in rows))
+            entry["metrics"][m] = {
+                "mean": float(np.nanmean(values)) if np.any(np.isfinite(values)) else None,
+                "mean_z": float(np.nanmean(z)) if np.any(np.isfinite(z)) else None,
+                "max_p_empirical": max(p) if p else None,  # the least convincing replica
+                "replicas_beyond_null": int(sum(row[f"{m}_beyond_null"] for row in rows)),
+                "all_replicas_beyond_null": all_beyond,
+                "saturated_in_null": saturated,
+                "control_max": None if is_control else control_max[m] if controls else None,
+                "all_replicas_beyond_control": beyond_control,
+            }
+            if not all_beyond:
+                continue
+            beyond.append(m)
+            if saturated:
+                excluded[m] = (
+                    f"saturated: two WT simulations already reach {null_max[m]:.3f} "
+                    f"of a possible {METRIC_RANGE[m][1]:.3f}"
+                )
+            elif beyond_control is False:
+                excluded[m] = f"the modelled-WT control ({', '.join(controls)}) reaches {control_max[m]:.3g}"
+            else:
+                supporting.append(m)
+
+        n_eff = min((float(row["effective_samples_min"]) for row in rows), default=float("nan"))
+        converged = bool(all(row.get("sampling_ok", False) for row in rows))
+        entry["metrics_beyond_null"] = beyond
+        entry["metrics_supporting"] = supporting
+        entry["metrics_excluded"] = excluded
+        entry["sampling_converged"] = converged
+        entry["effective_samples_min"] = n_eff
+
+        prefix = "Control (the 'mutant' has the WT sequence): " if is_control else ""
+        if not beyond:
+            entry["evidence"] = "none"
+            note = "No metric separates this scenario from pairs of WT simulations."
+        elif not supporting:
+            entry["evidence"] = "none"
+            reasons = "; ".join(f"{m}: {why}" for m, why in excluded.items())
+            note = f"Exceeds every WT-vs-WT pair in {', '.join(beyond)}, but that does not count ({reasons})."
+        else:
+            shortfalls: List[str] = []
+            if len(rows) < 2 or n_null < MIN_NULL_PAIRS_FOR_SIGNIFICANCE:
+                shortfalls.append(
+                    f"{len(rows)} replica(s) and {n_null} null pair(s) are not enough for significance "
+                    f"(need >= 2 replicas and >= {MIN_NULL_PAIRS_FOR_SIGNIFICANCE} pairs)"
+                )
+            if not converged:
+                shortfalls.append(
+                    f"the simulations are not converged (as few as {n_eff:.1f} effective samples, "
+                    f"need >= {MIN_EFFECTIVE_SAMPLES:g})"
+                )
+            where = f"all {len(rows)} replica(s) exceed all {n_null} WT-vs-WT pairs"
+            if controls and not is_control:
+                where += f" and the modelled-WT control ({', '.join(controls)})"
+            if shortfalls:
+                entry["evidence"] = "suggestive"
+                note = f"In {', '.join(supporting)}, {where}, but {'; and '.join(shortfalls)}."
+            else:
+                entry["evidence"] = "supported"
+                note = (
+                    f"In {', '.join(supporting)}, {where} (per-run p <= {1.0 / (1 + n_null):.3f}, "
+                    f"uncorrected for {len(COMPARISON_METRICS)} metrics)."
+                )
+            if excluded:
+                note += " Not counted: " + "; ".join(f"{m} ({why})" for m, why in excluded.items()) + "."
+            if is_control:
+                note += " Model building alone produces a difference here: read the mutants against this scenario."
+        entry["evidence_note"] = prefix + note
+        scenarios[scenario] = entry
+    return scenarios
+
+
+def _calibrate_and_write(
+    panel_dir: str,
+    out_dir: str,
+    pair_rows: List[Dict[str, Any]],
+    observed: Sequence[Tuple[_Run, Dict[str, Any], str]],
+    settings: Dict[str, Any],
+    skipped: List[Dict[str, str]],
+    notes: List[str],
+) -> Dict[str, Any]:
+    """Place every observed run on the null, derive the verdicts and write the outputs."""
+    null_values = {m: [float(row[m]) for row in pair_rows] for m in COMPARISON_METRICS}
+
+    run_rows: List[Dict[str, Any]] = []
+    for run, results, source in observed:
         metrics = comparison_metrics(results)
+        basins = results["basin_ddg"]
+        n_eff = float(min(basins["effective_samples_wt"], basins["effective_samples_mut"]))
         row: Dict[str, Any] = {
             "scenario": run.scenario,
             "replicate": run.replicate,
+            "control": run.is_control,
             "observed_from": source,
             "te_delta": metrics["te_delta"],
-            "effective_samples_min": float(
-                min(results["basin_ddg"]["effective_samples_wt"], results["basin_ddg"]["effective_samples_mut"])
-            ),
+            "effective_samples_min": n_eff,
+            "sampling_ok": bool(basins.get("sampling_ok", n_eff >= MIN_EFFECTIVE_SAMPLES)),
         }
         for m in COMPARISON_METRICS:
             cal = calibrate_against_null(metrics[m], null_values[m])
@@ -311,54 +552,38 @@ def run_null_control(
             row[f"{m}_beyond_null"] = bool(cal["null_max"] is not None and metrics[m] > cal["null_max"])
         run_rows.append(row)
 
-    # --- per-scenario verdicts ---------------------------------------------------------------
-    scenarios: Dict[str, Dict[str, Any]] = {}
-    for scenario in sorted({row["scenario"] for row in run_rows}):
-        rows = [row for row in run_rows if row["scenario"] == scenario]
-        entry: Dict[str, Any] = {"replicas": len(rows), "metrics": {}}
-        beyond = []
-        for m in COMPARISON_METRICS:
-            values = np.asarray([row[m] for row in rows], dtype=float)
-            z = np.asarray([np.nan if row[f"{m}_z"] is None else row[f"{m}_z"] for row in rows], dtype=float)
-            p = [row[f"{m}_p"] for row in rows if row[f"{m}_p"] is not None]
-            all_beyond = bool(all(row[f"{m}_beyond_null"] for row in rows))
-            entry["metrics"][m] = {
-                "mean": float(np.nanmean(values)) if np.any(np.isfinite(values)) else None,
-                "mean_z": float(np.nanmean(z)) if np.any(np.isfinite(z)) else None,
-                "max_p_empirical": max(p) if p else None,  # the least convincing replica
-                "replicas_beyond_null": int(sum(row[f"{m}_beyond_null"] for row in rows)),
-                "all_replicas_beyond_null": all_beyond,
-            }
-            if all_beyond:
-                beyond.append(m)
-        entry["metrics_beyond_null"] = beyond
-        if not beyond:
-            entry["evidence"] = "none"
-            entry["evidence_note"] = "No metric separates this scenario from pairs of WT simulations."
-        elif len(rows) >= 2 and len(pair_rows) >= MIN_NULL_PAIRS_FOR_SIGNIFICANCE:
-            entry["evidence"] = "supported"
-            entry["evidence_note"] = (
-                f"All {len(rows)} replicas exceed all {len(pair_rows)} WT-vs-WT pairs in: {', '.join(beyond)} "
-                f"(per-run p <= {1.0 / (1 + len(pair_rows)):.3f}, uncorrected for {len(COMPARISON_METRICS)} metrics)."
-            )
-        else:
-            entry["evidence"] = "suggestive"
-            entry["evidence_note"] = (
-                f"Exceeds every WT-vs-WT pair in: {', '.join(beyond)}, but with {len(rows)} replica(s) and "
-                f"{len(pair_rows)} null pair(s) this is not significant (need >= 2 replicas and "
-                f">= {MIN_NULL_PAIRS_FOR_SIGNIFICANCE} pairs)."
-            )
-        scenarios[scenario] = entry
+    scenarios = scenario_verdicts(run_rows, null_values)
+    controls = [name for name, entry in scenarios.items() if entry["is_control"]]
 
     n_null = len(pair_rows)
+    n_wt = len({label for row in pair_rows for label in (row.get("wt_a"), row.get("wt_b")) if label}) or len(run_rows)
+    notes = list(notes)
     notes.append(
-        f"{n_null} WT-vs-WT pair(s) from {len(runs)} WT trajectories: the smallest attainable "
+        f"{n_null} WT-vs-WT pair(s) from {n_wt} WT trajectories: the smallest attainable "
         f"empirical p-value is {1.0 / (1 + n_null):.3f}."
     )
     if n_null < MIN_NULL_PAIRS_FOR_SIGNIFICANCE:
         notes.append(
             f"Fewer than {MIN_NULL_PAIRS_FOR_SIGNIFICANCE} null pairs: no single run can reach p <= 0.05 and "
             "z-scores are unstable. Seven WT trajectories (e.g. 4 scenarios x 2 replicas) are enough."
+        )
+    saturated = [m for m in COMPARISON_METRICS if _saturated_in_null(m, float(np.nanmax(null_values[m])))]
+    if saturated:
+        notes.append(
+            f"Saturated in the null (two WT simulations already reach the ceiling), so not usable: {', '.join(saturated)}."
+        )
+    unconverged = sum(1 for row in run_rows if not row["sampling_ok"])
+    if unconverged:
+        notes.append(
+            f"{unconverged} of {len(run_rows)} runs are not converged (fewer than {MIN_EFFECTIVE_SAMPLES:g} effective "
+            "samples): no scenario can be more than suggestive. Longer simulations are needed."
+        )
+    if controls:
+        notes.append(f"Modelled-WT control: {', '.join(controls)}. A metric counts for a mutant only above it.")
+    else:
+        notes.append(
+            "No modelled-WT control in this panel (a silent substitution such as K2K): effects of model "
+            "building cannot be told from effects of the mutation."
         )
 
     os.makedirs(out_dir, exist_ok=True)
@@ -376,22 +601,20 @@ def run_null_control(
 
     summary: Dict[str, Any] = {
         "panel_dir": panel_dir,
-        "wt_trajectories": len(runs),
+        "wt_trajectories": n_wt,
         "null_pairs": n_null,
-        "runs_reanalysed": reanalysed,
-        "ligand_resnames": ligand_resnames,
-        "temperature_k": temperature_k,
-        "field_config": asdict(field_cfg),
-        "latent_config": asdict(latent_cfg),
-        "te_config": {**asdict(te_cfg), "ridge_values": [float(v) for v in te_cfg.ridge_values]},
+        "runs_reanalysed": sum(1 for _, _, source in observed if source == "re-analysed"),
+        **settings,
         "null": {
             m: {
                 "values": null_values[m],
                 "mean": float(np.nanmean(null_values[m])),
                 "max": float(np.nanmax(null_values[m])),
+                "saturated": m in saturated,
             }
             for m in COMPARISON_METRICS
         },
+        "control_scenarios": controls,
         "scenarios": scenarios,
         "skipped_runs": skipped,
         "notes": notes,

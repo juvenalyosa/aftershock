@@ -14,6 +14,7 @@ cell look at it:
                       of the time left, until the workflow ends;
 * ``stop``            stop a running workflow (it can be resumed by ``launch``);
 * ``panel_progress`` / ``platforms_used``  read the state of the simulations;
+* ``verdict_rows``       the null-control verdict of every scenario, as table rows;
 * ``zip_light_results``  pack tables, figures and reports (no trajectories).
 
 Only the standard library is used, so the module works (and is tested) anywhere.
@@ -379,6 +380,27 @@ def follow(
 
 
 # --- results -------------------------------------------------------------------------------------
+
+def verdict_rows(panel_dir: str) -> List[Dict[str, Any]]:
+    """Null-control verdict of every scenario of a panel, one row each (controls last)."""
+    with open(os.path.join(panel_dir, "null_control", "null_control_summary.json"), "r", encoding="utf-8") as handle:
+        summary = json.load(handle)
+    rows = []
+    for name, entry in summary["scenarios"].items():
+        # Results written before the rules for "counts" existed only list what exceeds the null.
+        counted = entry.get("metrics_supporting", entry.get("metrics_beyond_null", []))
+        rows.append(
+            {
+                "scenario": name + (" (control)" if entry.get("is_control") else ""),
+                "replicas": entry["replicas"],
+                "evidence": entry["evidence"],
+                "metrics that count": ", ".join(counted) or "-",
+                "note": entry["evidence_note"],
+            }
+        )
+    rows.sort(key=lambda row: row["scenario"].endswith("(control)"))
+    return rows
+
 
 # Trajectories and restart data: large, and not needed to read the results.
 _HEAVY_SUFFIXES = (".npz", ".dcd", ".chk", "_start.xml", "_system.xml")

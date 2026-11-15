@@ -91,6 +91,7 @@ Several mutations can be combined; positions always refer to the WT sequence.
 | `diagnostics` | convergence/time-course plots, interpretation summary |
 | `rank` | MD-based allosteric residue/region ranking of one run |
 | `null-control` | calibrate a panel against pairs of its own WT simulations (no mutation) |
+| `site-check` | does the metal site stay coordinated in every simulation of a panel? |
 | `consensus` | replicate consensus (+ optional control scenario) of a panel |
 | `evidence` | conservative evidence report of a panel |
 | `report` | plain-language Markdown report of one run |
@@ -157,6 +158,22 @@ subtracted. The solution is to describe both in a common space.
    `supported`). `pert md-panel` does this automatically; `pert null-control`
    does it for any finished panel. A panel needs at least 7 WT trajectories
    (e.g. 4 scenarios x 2 replicas) for a single run to reach p <= 0.05.
+
+   Exceeding every WT-vs-WT pair is necessary, not sufficient. A metric
+   *counts* only if it is not saturated in the null (two WT simulations that
+   already reach a total-variation distance of 0.999 leave nothing to exceed)
+   and if every replica also exceeds the modelled-WT control, when the panel
+   has one: a scenario whose "mutant" has the WT sequence (`wt_model:K2K`) is
+   recognised as that control. `supported` further requires converged
+   simulations. `pert null-control --recalibrate` re-derives the verdicts of a
+   finished panel from its stored pairs, without the trajectories.
+
+6. **Did the site survive?** (`analysis.metal_site`, `pert site-check`). Metal
+   ions are non-bonded particles, so a site can lose a ligand during a
+   simulation. The check follows the distance of every initial ligating atom
+   to the ion, and the water that gets in, through each trajectory and labels
+   the site `intact`, `distorted` or `lost`. If sites break in some
+   simulations, the comparison measures that and not the mutation.
 
 Sampling is reported, not assumed: a trajectory that never changes basin counts
 as one effective sample, and `sampling_ok` is false below 10.
@@ -275,7 +292,8 @@ Design advice:
 * **A modelled-WT control.** A silent substitution (`wt_model:K2K`) makes
   MODELLER rebuild the unmutated protein. Every mutant is a model while the WT
   is the experimental structure, so this scenario shows how much of an effect
-  comes from model building alone.
+  comes from model building alone. The null control uses it: a metric counts
+  for a mutant only above what this scenario reaches.
 * **Growing a panel.** Seeds depend on the scenario name, not on its position:
   adding or removing scenarios and re-running reuses what is already simulated.
 
@@ -330,6 +348,12 @@ the saved starting state (`*_system.xml`, `*_start.xml`).
   the current method (without touching the runs); `frame_mode: "legacy_self"`
   together with the latent `solver: "full"` reproduces the old numbers exactly
   if needed.
+* **Short simulations are not converged.** On the toy zinc finger, 16
+  simulations of 20 ns (`configs/znf_panel_20ns.json`) gave 3 to 7 effective
+  samples per trajectory, two WT simulations were told apart with a median AUC
+  of 0.92, and no scenario was distinguishable from the null and the
+  modelled-WT control. Check `sampling_ok` and the null before reading any
+  difference.
 * The null control calibrates the region-level estimands only; the per-residue
   ranking and the fast scan are not yet calibrated against a null.
 * Trajectories are bit-reproducible only on deterministic platforms (see

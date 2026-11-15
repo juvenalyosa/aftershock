@@ -246,3 +246,121 @@ def test_held_out_separability_does_not_saturate():
     different = classifier_separability(rng.normal(size=(300, 6)), rng.normal(size=(300, 6)) + 4.0)
     assert different["classifier_auc"] > 0.99
     assert different["js_divergence"] > 0.6
+
+
+# --- metal-site integrity -----------------------------------------------------------------------
+
+
+def test_metal_site_check_tells_an_intact_site_from_one_that_loses_a_ligand(tmp_path, toy_reference_pdb):
+    from pert.analysis.metal_site import metal_site_series
+    from pert.deps import app
+    from pert.pipelines.site_check import run_site_check
+
+    reference = reference_positions(toy_reference_pdb)
+    positions, velocities = make_trajectory(reference, seed=5, n_frames=100, noise_nm=0.005)
+    intact_npz = save_trajectory(str(tmp_path / "p" / "s" / "rep1" / "md" / "wt_traj.npz"), positions, velocities)
+
+    (site,) = metal_site_series(toy_reference_pdb, intact_npz, ["ZN"])
+    donors = sorted(d["donor"].split(":")[0][:3] + d["donor"].split(":")[1] for d in site["donors"])
+    assert donors == ["CYSSG", "CYSSG", "HISNE2", "HISNE2"]  # the Cys2His2 site, nothing else
+    assert site["status"] == "intact" and all(d["fraction_bound"] == 1.0 for d in site["donors"])
+
+    # One histidine drifts 6 A away over the second half of the trajectory.
+    atoms = list(app.PDBFile(toy_reference_pdb).topology.atoms())
+    his = [a for a in atoms if a.residue.name == "HIS" and a.residue.id.strip() == "23"]
+    broken = positions.copy()
+    ramp = np.clip((np.arange(100) - 50) / 20.0, 0.0, 1.0)[:, None, None] * np.array([0.6, 0.0, 0.0])
+    broken[:, [a.index for a in his], :] += ramp
+    broken_npz = save_trajectory(str(tmp_path / "p" / "s" / "rep1" / "md" / "mut_traj.npz"), broken, velocities)
+    (site,) = metal_site_series(toy_reference_pdb, broken_npz, ["ZN"])
+    assert site["status"] == "lost"
+    leaving = [d for d in site["donors"] if d["fraction_bound_last_fifth"] < 0.5]
+    assert [d["donor"] for d in leaving] == ["HIS23:NE2"] and leaving[0]["final_ang"] > 3.5
+
+    # Panel level: one row per simulation, and the summary says the panel is not clean.
+    write_run(str(tmp_path / "p" / "s" / "rep1"), toy_reference_pdb, intact_npz, toy_reference_pdb, broken_npz)
+    summary = run_site_check(str(tmp_path / "p"), ligand_resnames=["ZN"])
+    assert summary["status_counts_by_system"] == {"wt": {"intact": 1, "lost": 0}, "mut": {"intact": 0, "lost": 1}}
+    assert summary["all_intact"] is False and os.path.getsize(summary["outputs"]["plot"]) > 0
+
+
+# --- verdict rules ------------------------------------------------------------------------------
+
+
+def _calibrated_row(scenario, values, null, control=False, sampling_ok=True):
+    """A run as the null control tabulates it, from its metric values."""
+    from pert.analysis.topology_safe import COMPARISON_METRICS
+
+    row = {"scenario": scenario, "control": control, "sampling_ok": sampling_ok,
+           "effective_samples_min": 40.0 if sampling_ok else 3.0}
+    for m in COMPARISON_METRICS:
+        cal = calibrate_against_null(values[m], null[m])
+        row.update({m: values[m], f"{m}_z": cal["z"], f"{m}_p": cal["p_empirical"],
+                    f"{m}_beyond_null": values[m] > cal["null_max"]})
+    return row
+
+
+def test_verdict_rules_saturation_control_and_convergence():
+    from pert.analysis.topology_safe import COMPARISON_METRICS
+    from pert.pipelines.null_control import scenario_verdicts
+
+    rng = np.random.default_rng(0)
+    null = {m: list(rng.uniform(0.1, 0.3, size=28)) for m in COMPARISON_METRICS}
+    null["basin_population_tv"] = list(rng.uniform(0.6, 0.999, size=27)) + [0.999]  # WT pairs reach the ceiling
+    inside = {m: 0.2 for m in COMPARISON_METRICS}
+
+    def verdict(rows, name="mutant"):
+        return scenario_verdicts(rows, null)[name]
+
+    # A clear, converged, replicated effect in an unsaturated metric is supported.
+    effect = dict(inside, js_divergence=0.6)
+    entry = verdict([_calibrated_row("mutant", effect, null) for _ in range(2)])
+    assert entry["evidence"] == "supported" and entry["metrics_supporting"] == ["js_divergence"]
+
+    # The same effect from unconverged simulations is only suggestive.
+    entry = verdict([_calibrated_row("mutant", effect, null, sampling_ok=False) for _ in range(2)])
+    assert entry["evidence"] == "suggestive" and "not converged" in entry["evidence_note"]
+
+    # Beating a null that already sits at the ceiling of the metric does not count.
+    entry = verdict([_calibrated_row("mutant", dict(inside, basin_population_tv=1.0), null) for _ in range(2)])
+    assert entry["metrics_beyond_null"] == ["basin_population_tv"] and entry["metrics_supporting"] == []
+    assert entry["evidence"] == "none" and "saturated" in entry["evidence_note"]
+
+    # Nor does an effect that the modelled-WT control reaches as well.
+    control = [_calibrated_row("wt_model", dict(inside, js_divergence=0.65 if rep else 0.2), null, control=True) for rep in range(2)]
+    entry = verdict([_calibrated_row("mutant", effect, null) for _ in range(2)] + control)
+    assert entry["evidence"] == "none" and "wt_model" in entry["evidence_note"]
+    assert entry["metrics"]["js_divergence"]["all_replicas_beyond_control"] is False
+    # ... while an effect above the control still does.
+    entry = verdict([_calibrated_row("mutant", dict(inside, js_divergence=0.68), null) for _ in range(2)] + control)
+    assert entry["evidence"] == "supported"
+    # The control itself is judged against the null only, and labelled.
+    entry = verdict(control, name="wt_model")
+    assert entry["is_control"] and entry["evidence"] == "none" and entry["evidence_note"].startswith("Control")
+
+
+def test_recalibration_reproduces_the_verdicts_without_trajectories(tmp_path, synthetic_panel):
+    import shutil
+
+    from pert.pipelines.null_control import recalibrate_null_control
+
+    out_dir = str(tmp_path / "null")
+    first = run_null_control(
+        panel_dir=synthetic_panel["root"], ligand_resnames=["ZN"], field_cfg=FieldConfig(**FIELD),
+        latent_cfg=LATENT, te_cfg=TE, temperature_k=300.0, output_dir=out_dir,
+    )
+    # Every "mutant" of this panel has the WT sequence, so all three are controls.
+    assert sorted(first["control_scenarios"]) == ["shifted", "silent_a", "silent_b"]
+
+    # A copy of the panel without trajectories (what a results archive holds).
+    copy = str(tmp_path / "copy")
+    shutil.copytree(synthetic_panel["root"], copy, ignore=shutil.ignore_patterns("*.npz", "null_control"))
+    copy_out = str(tmp_path / "copy_null")
+    shutil.copytree(out_dir, copy_out)
+    second = recalibrate_null_control(copy, output_dir=copy_out)
+    assert second["null_pairs"] == first["null_pairs"] and second["wt_trajectories"] == first["wt_trajectories"]
+    for name, entry in first["scenarios"].items():
+        again = second["scenarios"][name]
+        assert again["evidence"] == entry["evidence"] and again["metrics_beyond_null"] == entry["metrics_beyond_null"]
+        for metric, stats in entry["metrics"].items():
+            assert again["metrics"][metric]["mean"] == pytest.approx(stats["mean"], rel=1e-9)

@@ -25,6 +25,7 @@ COMMANDS: Dict[str, Tuple[str, str]] = {
     "diagnostics": ("pert.cli.diagnostics", "Extended diagnostic plots and interpretation summary."),
     "rank": ("pert.cli.rank", "MD-based allosteric residue/region ranking of one run."),
     "null-control": ("pert.cli.null_control", "Calibrate a panel against the WT-vs-WT null (no mutation)."),
+    "site-check": ("pert.cli.site_check", "Check that the metal site stays coordinated in every simulation."),
     "consensus": ("pert.cli.consensus", "Aggregate rankings across replicas of a panel."),
     "evidence": ("pert.cli.evidence", "Grade the consensus into an evidence report."),
     "report": ("pert.cli.report", "Plain-language Markdown report of one run."),

@@ -7,7 +7,7 @@ import argparse
 import json
 
 from pert.config import TEConfig
-from pert.pipelines.null_control import NullControlUnavailable, run_null_control
+from pert.pipelines.null_control import NullControlUnavailable, recalibrate_null_control, run_null_control
 from pert.utils.io import parse_csv_tokens
 
 
@@ -33,6 +33,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Re-analyse every run instead of reusing stored results computed with the same settings.",
     )
+    parser.add_argument(
+        "--recalibrate",
+        action="store_true",
+        help=(
+            "Only re-derive the verdicts from the WT-vs-WT pairs already computed (no trajectory is read). "
+            "For results produced under older rules, or copied without their trajectories."
+        ),
+    )
     parser.add_argument("--var-max-order", type=int, default=None, help="TE setting; default: as recorded by the panel.")
     parser.add_argument("--te-surrogates", type=int, default=None, help="TE setting; default: as recorded by the panel.")
     parser.add_argument("--seed", type=int, default=13, help="Seed for the choice of pairs.")
@@ -47,6 +55,10 @@ def main() -> None:
             raise SystemExit("Give both --var-max-order and --te-surrogates, or neither.")
         te_cfg = TEConfig(max_order=args.var_max_order, surrogates=args.te_surrogates)
     try:
+        if args.recalibrate:
+            summary = recalibrate_null_control(args.panel_dir, output_dir=args.output_dir)
+            print(json.dumps({k: summary[k] for k in ("wt_trajectories", "null_pairs", "scenarios", "notes", "outputs")}, indent=2))
+            return
         summary = run_null_control(
             panel_dir=args.panel_dir,
             ligand_resnames=parse_csv_tokens(args.ligand_resname) or None,

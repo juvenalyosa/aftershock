@@ -139,3 +139,44 @@ def plot_null_control(
     os.makedirs(os.path.dirname(out_png) or ".", exist_ok=True)
     fig.savefig(out_png, dpi=200)
     plt.close(fig)
+
+
+def plot_site_check(traces: Sequence[Dict[str, object]], bound_cutoff_ang: float, out_png: str) -> None:
+    """Donor-metal distances against time, one panel per simulation.
+
+    ``traces`` holds, per simulation, ``label``, ``status``, ``time_ns`` and
+    ``donors`` (``{donor name: distances in Angstrom}``).  The dashed line is
+    the distance below which a donor counts as bound.
+    """
+    n = len(traces)
+    columns = min(4, max(1, n))
+    rows = int(np.ceil(n / columns))
+    fig, axes = plt.subplots(rows, columns, figsize=(4.2 * columns, 2.9 * rows), squeeze=False, sharey=True)
+    status_colors = {"intact": "#2E7D32", "distorted": "#E08A00", "lost": "#B22222", "no_site": "#555555"}
+    top = float(bound_cutoff_ang) * 2.0
+    for trace in traces:
+        for series in dict(trace["donors"]).values():
+            top = max(top, float(np.max(series)) if len(series) else 0.0)
+    top = min(top * 1.05, 30.0)
+    for ax, trace in zip(axes.ravel(), traces):
+        time_ns = np.asarray(trace["time_ns"], dtype=float)
+        for name, series in dict(trace["donors"]).items():
+            ax.plot(time_ns, np.asarray(series, dtype=float), linewidth=0.8, label=str(name))
+        ax.axhline(float(bound_cutoff_ang), color="black", linewidth=0.8, linestyle="--")
+        status = str(trace["status"])
+        ax.set_title(f"{trace['label']}  [{status}]", fontsize=9, color=status_colors.get(status, "black"))
+        ax.set_ylim(0.0, top)
+        ax.grid(alpha=0.2)
+        if dict(trace["donors"]):
+            ax.legend(fontsize=6, loc="upper left", ncol=2, frameon=False)
+    for ax in axes.ravel()[n:]:
+        ax.axis("off")
+    for ax in axes[-1, :]:
+        ax.set_xlabel("time (ns)")
+    for ax in axes[:, 0]:
+        ax.set_ylabel("donor - metal (Å)")
+    fig.suptitle("Metal-site check: distance of each initial ligating atom to the ion")
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(out_png) or ".", exist_ok=True)
+    fig.savefig(out_png, dpi=160)
+    plt.close(fig)

@@ -89,3 +89,21 @@ def test_launch_follow_stop_with_a_stand_in_workflow(tmp_path, monkeypatch, caps
     assert ct.is_running(log) is False and ct.exit_code(log) is None
     assert ct.launch(str(cfg), log, extra_env={"NAP": "0", "CODE": "0"}) is True
     assert ct.follow(log, poll_seconds=0.1) == 0
+
+
+def test_verdict_rows_put_the_control_last_and_read_older_summaries(tmp_path):
+    panel = tmp_path / "panel"
+    summary = {
+        "scenarios": {
+            "wt_model": {"replicas": 2, "evidence": "none", "is_control": True, "metrics_beyond_null": [],
+                         "metrics_supporting": [], "evidence_note": "Control"},
+            "snp": {"replicas": 2, "evidence": "suggestive", "is_control": False, "metrics_beyond_null": ["a", "b"],
+                    "metrics_supporting": ["a"], "evidence_note": "x"},
+            # written before 'metrics_supporting' existed
+            "old": {"replicas": 1, "evidence": "suggestive", "metrics_beyond_null": ["b"], "evidence_note": "y"},
+        }
+    }
+    _write(str(panel / "null_control" / "null_control_summary.json"), summary)
+    rows = ct.verdict_rows(str(panel))
+    assert [row["scenario"] for row in rows] == ["snp", "old", "wt_model (control)"]
+    assert [row["metrics that count"] for row in rows] == ["a", "b", "-"]

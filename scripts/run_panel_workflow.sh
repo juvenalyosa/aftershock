@@ -2,11 +2,12 @@
 # Full MD workflow for a panel described by a JSON config (any protein):
 #
 #   1. md-panel-config  build + MD + topology-safe analysis for every scenario/replica
-#   2. analyze-run      standard plots, binding-site table, residue-flow network
-#   3. rank             per-run allosteric residue/region ranking
-#   4. consensus        replicate consensus across the panel
-#   5. evidence         conservative evidence report
-#   6. report           plain-language report per run
+#   2. site-check       does the metal site stay coordinated in every simulation?
+#   3. analyze-run      standard plots, binding-site table, residue-flow network
+#   4. rank             per-run allosteric residue/region ranking
+#   5. consensus        replicate consensus across the panel
+#   6. evidence         conservative evidence report
+#   7. report           plain-language report per run
 #
 # Usage:  bash scripts/run_panel_workflow.sh path/to/panel_config.json
 #
@@ -65,8 +66,13 @@ if [[ -n "${CONTROL_SCENARIO}" ]]; then
   CONTROL_ARGS=(--control-scenario "${CONTROL_SCENARIO}")
 fi
 
-echo "[1/6] Running the MD panel (build, MD, analysis, null control)..."
+echo "[1/7] Running the MD panel (build, MD, analysis, null control)..."
 pert md-panel-config --config "${CONFIG_PATH}"
+
+echo "[2/7] Checking that the metal site holds together in every simulation..."
+# Not fatal: a panel whose ligand is not a metal ion has nothing to check.
+pert site-check --panel-dir "${OUTPUT_DIR}" --ligand-resname "${LIGAND_RESNAME}" \
+  || echo "  (no metal site to check for ligand ${LIGAND_RESNAME})"
 
 RUN_DIRS=()
 while IFS= read -r run_dir; do
@@ -77,7 +83,7 @@ if [[ "${#RUN_DIRS[@]}" -eq 0 ]]; then
   exit 2
 fi
 
-echo "[2/6] Building per-run flow artifacts and plots..."
+echo "[3/7] Building per-run flow artifacts and plots..."
 for RUN_DIR in "${RUN_DIRS[@]}"; do
   echo "  - ${RUN_DIR}"
   pert analyze-run \
@@ -86,7 +92,7 @@ for RUN_DIR in "${RUN_DIRS[@]}"; do
     --cutoff-ang "${BINDING_CUTOFF_ANG}"
 done
 
-echo "[3/6] Ranking allosteric residue and region effects..."
+echo "[4/7] Ranking allosteric residue and region effects..."
 for RUN_DIR in "${RUN_DIRS[@]}"; do
   pert rank \
     --run-dir "${RUN_DIR}" \
@@ -98,7 +104,7 @@ for RUN_DIR in "${RUN_DIRS[@]}"; do
     --top-residues 30
 done
 
-echo "[4/6] Building panel-level allostery consensus..."
+echo "[5/7] Building panel-level allostery consensus..."
 pert consensus \
   --panel-dir "${OUTPUT_DIR}" \
   --ligand-resname "${LIGAND_RESNAME}" \
@@ -107,20 +113,21 @@ pert consensus \
   --top-regions 10 \
   ${CONTROL_ARGS[@]+"${CONTROL_ARGS[@]}"}
 
-echo "[5/6] Writing panel-level allostery evidence report..."
+echo "[6/7] Writing panel-level allostery evidence report..."
 pert evidence \
   --panel-dir "${OUTPUT_DIR}" \
   --top-residues 10 \
   --top-regions 5 \
   ${CONTROL_ARGS[@]+"${CONTROL_ARGS[@]}"}
 
-echo "[6/6] Writing reader reports..."
+echo "[7/7] Writing reader reports..."
 for RUN_DIR in "${RUN_DIRS[@]}"; do
   pert report --run-dir "${RUN_DIR}"
 done
 
 echo "Done. Panel outputs are in: ${OUTPUT_DIR}"
 echo "Null control (is it more than noise?): ${OUTPUT_DIR}/null_control/null_control_summary.json"
+echo "Metal-site check (did the site survive?): ${OUTPUT_DIR}/site_check/site_check_simulations.csv"
 echo "Consensus ranking: ${OUTPUT_DIR}/allostery_consensus_residues.csv"
 echo "Evidence report: ${OUTPUT_DIR}/allostery_evidence_report.md"
 echo "Per-run reports: ${OUTPUT_DIR}/<scenario>/<replicate>/analysis/reader_report.md"
