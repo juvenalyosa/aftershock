@@ -311,6 +311,13 @@ starts `scripts/run_panel_workflow.sh` in the background and follows its log
 the notebook again resumes every simulation from its last checkpoint. It needs
 a MODELLER licence key.
 
+[`notebooks/aftershock_checks.ipynb`](notebooks/aftershock_checks.ipynb) is a
+single cell for a panel that is already on Drive: metal-site check, verdicts
+under the current rules, and a zip of the results. It needs neither a GPU nor
+MODELLER:
+
+<https://colab.research.google.com/github/juvenalyosa/aftershock/blob/main/notebooks/aftershock_checks.ipynb>
+
 The same scripts work on any Linux machine without conda: set
 `PERT_PYTHON=/path/to/python` and call `scripts/run_panel_workflow.sh`.
 

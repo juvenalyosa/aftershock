@@ -60,6 +60,7 @@ def run_site_check(
                 continue
             label = f"{scenario}/{replicate}/{system}"
             for site in metal_site_series(pdb, npz, ligand_resnames, shell_cutoff_ang, bound_cutoff_ang):
+                print(f"[site-check] {label}: {site['metal']} {site['status']}", flush=True)
                 simulations.append(
                     {
                         "scenario": scenario,
